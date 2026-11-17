@@ -1,9 +1,10 @@
 package com.farmplanner;
 
 import java.util.Set;
+import net.runelite.api.gameval.ObjectID;
 
 /**
- * Object-ID's van de farming patches (uit net.runelite.api.gameval.ObjectID).
+ * Object-ID's van de farming patches.
  */
 final class PatchIds
 {
@@ -12,26 +13,35 @@ final class PatchIds
 	}
 
 	static final Set<Integer> HERB = Set.of(
-		8150, 8151, 8152, 8153, // FARMING_HERB_PATCH_1-4 (Falador, Catherby, Ardougne, Port Phasmatys)
-		9372,                   // FARMING_HERB_PATCH_5
-		18816,                  // MYARM_HERBPATCH (Trollheim)
-		27115,                  // FARMING_HERB_PATCH_6 (Hosidius)
-		33979,                  // FARMING_HERB_PATCH_7 (Farming Guild)
-		50697                   // FARMING_HERB_PATCH_8 (Varlamore)
+		ObjectID.FARMING_HERB_PATCH_1,
+		ObjectID.FARMING_HERB_PATCH_2,
+		ObjectID.FARMING_HERB_PATCH_3,
+		ObjectID.FARMING_HERB_PATCH_4,
+		ObjectID.FARMING_HERB_PATCH_5,
+		ObjectID.MYARM_HERBPATCH,       // Trollheim
+		ObjectID.FARMING_HERB_PATCH_6,  // Hosidius
+		ObjectID.FARMING_HERB_PATCH_7,  // Farming Guild
+		ObjectID.FARMING_HERB_PATCH_8
 	);
 
 	static final Set<Integer> TREE = Set.of(
-		8388, 8389, 8390, 8391, // FARMING_TREE_PATCH_1-4
-		19147,                  // FARMING_TREE_PATCH_5 (Lumbridge)
-		33732,                  // FARMING_TREE_PATCH_6 (Farming Guild)
-		56953                   // FARMING_TREE_PATCH_7
+		ObjectID.FARMING_TREE_PATCH_1,
+		ObjectID.FARMING_TREE_PATCH_2,
+		ObjectID.FARMING_TREE_PATCH_3,
+		ObjectID.FARMING_TREE_PATCH_4,
+		ObjectID.FARMING_TREE_PATCH_5,  // Lumbridge
+		ObjectID.FARMING_TREE_PATCH_6,  // Farming Guild
+		ObjectID.FARMING_TREE_PATCH_7
 	);
 
 	static final Set<Integer> FRUIT_TREE = Set.of(
-		7962, 7963, 7964, 7965, // FARMING_FRUIT_TREE_PATCH_1-4
-		26579,                  // FARMING_FRUIT_TREE_PATCH_5 (Lletya)
-		34007,                  // FARMING_FRUIT_TREE_PATCH_6 (Farming Guild)
-		56955                   // FARMING_FRUIT_TREE_PATCH_7
+		ObjectID.FARMING_FRUIT_TREE_PATCH_1,
+		ObjectID.FARMING_FRUIT_TREE_PATCH_2,
+		ObjectID.FARMING_FRUIT_TREE_PATCH_3,
+		ObjectID.FARMING_FRUIT_TREE_PATCH_4,
+		ObjectID.FARMING_FRUIT_TREE_PATCH_5,  // Lletya
+		ObjectID.FARMING_FRUIT_TREE_PATCH_6,  // Farming Guild
+		ObjectID.FARMING_FRUIT_TREE_PATCH_7
 	);
 
 	static Set<Integer> forRun(RunType type)

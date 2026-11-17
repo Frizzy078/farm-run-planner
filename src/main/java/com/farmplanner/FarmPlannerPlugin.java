@@ -34,6 +34,7 @@ import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -54,10 +55,9 @@ import net.runelite.client.util.Text;
 )
 public class FarmPlannerPlugin extends Plugin
 {
-	// Vaste container-ID's van het spel.
-	static final int INVENTORY = 93;
-	static final int EQUIPMENT = 94;
-	static final int BANK = 95;
+	private static final int INVENTORY = InventoryID.INV;
+	private static final int EQUIPMENT = InventoryID.WORN;
+	private static final int BANK = InventoryID.BANK;
 
 	private static final int PLANT_DISTANCE = 4;
 

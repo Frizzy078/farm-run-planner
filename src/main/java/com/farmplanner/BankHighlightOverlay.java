@@ -5,7 +5,9 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import javax.inject.Inject;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.WidgetItem;
+import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
 /**
@@ -14,8 +16,6 @@ import net.runelite.client.ui.overlay.WidgetItemOverlay;
  */
 public class BankHighlightOverlay extends WidgetItemOverlay
 {
-	private static final int INVENTORY_GROUP = 149;
-
 	private final FarmPlannerPlugin plugin;
 
 	@Inject
@@ -34,7 +34,7 @@ public class BankHighlightOverlay extends WidgetItemOverlay
 			return;
 		}
 		boolean inInventory = widgetItem.getWidget() != null
-			&& (widgetItem.getWidget().getId() >>> 16) == INVENTORY_GROUP;
+			&& WidgetUtil.componentToInterface(widgetItem.getWidget().getId()) == InterfaceID.INVENTORY;
 		boolean highlight = inInventory
 			? plugin.getInventoryHighlightIds().contains(itemId)
 			: plugin.getBankHighlightIds().contains(itemId);

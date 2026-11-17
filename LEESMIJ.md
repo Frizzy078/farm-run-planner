@@ -32,7 +32,7 @@ Dubbelklik niet, maar start in Terminal vanuit deze map:
 
     ./start-plugin.sh
 
-Dit gebruikt Java uit de map `.tools` en de RuneLite-bestanden die al op je Mac staan.
+Dit start de Gradle-taak `run` met Java uit de map `.tools`.
 Je logt automatisch in met de opgeslagen sessie.
 
 ## Gebruik
