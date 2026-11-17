@@ -1,0 +1,636 @@
+package com.farmplanner;
+
+import com.google.inject.Provides;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import javax.inject.Inject;
+import javax.swing.SwingUtilities;
+import net.runelite.api.Client;
+import net.runelite.api.GameObject;
+import net.runelite.api.GameState;
+import net.runelite.api.Item;
+import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemContainer;
+import net.runelite.api.MenuEntry;
+import net.runelite.api.Player;
+import net.runelite.api.Scene;
+import net.runelite.api.Skill;
+import net.runelite.api.Tile;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.ClientTick;
+import net.runelite.api.events.GameObjectDespawned;
+import net.runelite.api.events.GameObjectSpawned;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuEntryAdded;
+import net.runelite.api.widgets.Widget;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.ui.ClientToolbar;
+import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.OverlayManager;
+import net.runelite.client.util.ColorUtil;
+import net.runelite.client.util.Text;
+
+@PluginDescriptor(
+	name = "Farm Run Planner",
+	description = "Kijkt in je bank en maakt een farm run met route, zaden, compost en teleports",
+	tags = {"farming", "herb", "tree", "route", "teleport", "bank", "planner"}
+)
+public class FarmPlannerPlugin extends Plugin
+{
+	// Vaste container-ID's van het spel.
+	static final int INVENTORY = 93;
+	static final int EQUIPMENT = 94;
+	static final int BANK = 95;
+
+	private static final int PLANT_DISTANCE = 4;
+
+	@Inject
+	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private ClientToolbar clientToolbar;
+
+	@Inject
+	private OverlayManager overlayManager;
+
+	@Inject
+	private ItemManager itemManager;
+
+	@Inject
+	private FarmPlannerConfig config;
+
+	@Inject
+	private BankHighlightOverlay bankOverlay;
+
+	@Inject
+	private PatchOverlay patchOverlay;
+
+	@Inject
+	private TeleportChoiceOverlay teleportOverlay;
+
+	private FarmPlannerPanel panel;
+	private NavigationButton navButton;
+
+	/** Laatst bekende inhoud per container. Alleen op de client thread gebruiken. */
+	private final Map<Integer, Item[]> containers = new HashMap<>();
+	/** Farming patches die nu in de wereld geladen zijn. Alleen op de client thread. */
+	private final Set<GameObject> patchObjects = new HashSet<>();
+	/** Widgets (dialoogopties, spreuken) die nu gehighlight moeten worden. */
+	private List<Widget> highlightedWidgets = Collections.emptyList();
+
+	private volatile boolean bankSeen;
+	private volatile FarmPlan plan;
+	private volatile int stepIndex;
+	private int lastSeedCount = -1;
+	private WorldPoint ourHintArrow;
+	private int tickCounter;
+
+	@Provides
+	FarmPlannerConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(FarmPlannerConfig.class);
+	}
+
+	@Override
+	protected void startUp()
+	{
+		panel = new FarmPlannerPanel(this);
+		navButton = NavigationButton.builder()
+			.tooltip("Farm Run Planner")
+			.icon(createIcon())
+			.priority(7)
+			.panel(panel)
+			.build();
+		clientToolbar.addNavigation(navButton);
+		overlayManager.add(bankOverlay);
+		overlayManager.add(patchOverlay);
+		overlayManager.add(teleportOverlay);
+
+		clientThread.invokeLater(() ->
+		{
+			if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				store(INVENTORY, client.getItemContainer(INVENTORY));
+				store(EQUIPMENT, client.getItemContainer(EQUIPMENT));
+				store(BANK, client.getItemContainer(BANK));
+				scanScene();
+			}
+		});
+	}
+
+	@Override
+	protected void shutDown()
+	{
+		clientToolbar.removeNavigation(navButton);
+		overlayManager.remove(bankOverlay);
+		overlayManager.remove(patchOverlay);
+		overlayManager.remove(teleportOverlay);
+		clientThread.invokeLater(this::clearOurHintArrow);
+		containers.clear();
+		patchObjects.clear();
+		highlightedWidgets = Collections.emptyList();
+		bankSeen = false;
+		plan = null;
+	}
+
+	// ------------------------------------------------------------------ items
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		int id = event.getContainerId();
+		if (id == INVENTORY || id == EQUIPMENT || id == BANK)
+		{
+			store(id, event.getItemContainer());
+		}
+		if (id == INVENTORY)
+		{
+			checkSeedPlanted(event.getItemContainer());
+		}
+	}
+
+	private void store(int id, ItemContainer container)
+	{
+		if (container == null)
+		{
+			return;
+		}
+		containers.put(id, container.getItems());
+		if (id == BANK)
+		{
+			bankSeen = true;
+			SwingUtilities.invokeLater(() -> panel.setBankSeen(true));
+		}
+	}
+
+	/**
+	 * Als het zaad van de huidige stap minder wordt terwijl je naast een patch staat,
+	 * heb je geplant: ga door naar de volgende stap.
+	 */
+	private void checkSeedPlanted(ItemContainer inventory)
+	{
+		FarmPlan.Step step = getCurrentStep();
+		if (step == null || inventory == null)
+		{
+			lastSeedCount = -1;
+			return;
+		}
+		int now = inventory.count(step.getSeedItemId());
+		if (lastSeedCount >= 0 && now < lastSeedCount && isNearPatch())
+		{
+			lastSeedCount = -1;
+			changeStep(1);
+			return;
+		}
+		lastSeedCount = now;
+	}
+
+	private boolean isNearPatch()
+	{
+		Player p = client.getLocalPlayer();
+		FarmPlan current = plan;
+		if (p == null || current == null)
+		{
+			return false;
+		}
+		WorldPoint me = p.getWorldLocation();
+		Set<Integer> ids = PatchIds.forRun(current.getRunType());
+		for (GameObject o : patchObjects)
+		{
+			if (ids.contains(o.getId()) && o.getWorldLocation().distanceTo(me) <= PLANT_DISTANCE)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// ------------------------------------------------------------------ plan
+
+	/** Wordt aangeroepen door de knop in het paneel. */
+	void requestPlan(RunType type)
+	{
+		clientThread.invokeLater(() ->
+		{
+			if (client.getGameState() != GameState.LOGGED_IN)
+			{
+				SwingUtilities.invokeLater(() -> panel.showMessage("Log eerst in."));
+				return;
+			}
+			if (!bankSeen)
+			{
+				SwingUtilities.invokeLater(() -> panel.showMessage(
+					"Open eerst je bank één keer, zodat de plugin kan zien wat je hebt."));
+				return;
+			}
+
+			OwnedItems owned = collectOwnedItems();
+			int farming = client.getRealSkillLevel(Skill.FARMING);
+			int magic = client.getBoostedSkillLevel(Skill.MAGIC);
+			PlanOptions options = new PlanOptions(
+				config.useSpells(),
+				config.houseInHosidius(),
+				config.includeTrollheim(),
+				config.includeLletya(),
+				Math.max(0, config.coinsPerTree()));
+
+			FarmPlan newPlan = PlanBuilder.build(type, owned, farming, magic, options);
+			plan = newPlan;
+			stepIndex = 0;
+			lastSeedCount = -1;
+			checkSeedPlanted(client.getItemContainer(INVENTORY));
+			SwingUtilities.invokeLater(() -> panel.showPlan(newPlan, 0));
+		});
+	}
+
+	void clearPlan()
+	{
+		plan = null;
+		clientThread.invokeLater(() ->
+		{
+			clearOurHintArrow();
+			highlightedWidgets = Collections.emptyList();
+		});
+	}
+
+	/** +1 = volgende stap, -1 = vorige stap. */
+	void changeStep(int delta)
+	{
+		FarmPlan current = plan;
+		if (current == null)
+		{
+			return;
+		}
+		int max = current.getActiveSteps().size();
+		int next = Math.max(0, Math.min(max, stepIndex + delta));
+		stepIndex = next;
+		clientThread.invokeLater(() ->
+		{
+			lastSeedCount = -1;
+			checkSeedPlanted(client.getItemContainer(INVENTORY));
+		});
+		SwingUtilities.invokeLater(() -> panel.showPlan(current, next));
+	}
+
+	/** Huidige stap, of null als er geen plan is of de run klaar is. */
+	FarmPlan.Step getCurrentStep()
+	{
+		FarmPlan current = plan;
+		if (current == null)
+		{
+			return null;
+		}
+		List<FarmPlan.Step> steps = current.getActiveSteps();
+		int i = stepIndex;
+		return i < steps.size() ? steps.get(i) : null;
+	}
+
+	FarmPlan getPlan()
+	{
+		return plan;
+	}
+
+	/** Moet op de client thread draaien (ItemManager). */
+	private OwnedItems collectOwnedItems()
+	{
+		OwnedItems owned = new OwnedItems();
+		for (Item[] items : containers.values())
+		{
+			for (Item item : items)
+			{
+				if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)
+				{
+					continue;
+				}
+				ItemComposition comp = itemManager.getItemComposition(item.getId());
+				if (comp.getPlaceholderTemplateId() != -1)
+				{
+					continue; // bank placeholder
+				}
+				int realId = comp.getNote() != -1 ? comp.getLinkedNoteId() : item.getId();
+				owned.add(realId, comp.getName(), item.getQuantity());
+			}
+		}
+		return owned;
+	}
+
+	// ------------------------------------------------------------------ patches in de wereld
+
+	@Subscribe
+	public void onGameObjectSpawned(GameObjectSpawned event)
+	{
+		if (PatchIds.isAnyPatch(event.getGameObject().getId()))
+		{
+			patchObjects.add(event.getGameObject());
+		}
+	}
+
+	@Subscribe
+	public void onGameObjectDespawned(GameObjectDespawned event)
+	{
+		patchObjects.remove(event.getGameObject());
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		if (event.getGameState() == GameState.LOADING || event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			patchObjects.clear();
+		}
+	}
+
+	private void scanScene()
+	{
+		patchObjects.clear();
+		Scene scene = client.getTopLevelWorldView().getScene();
+		Tile[][][] tiles = scene.getTiles();
+		for (Tile[][] plane : tiles)
+		{
+			for (Tile[] row : plane)
+			{
+				for (Tile tile : row)
+				{
+					if (tile == null || tile.getGameObjects() == null)
+					{
+						continue;
+					}
+					for (GameObject o : tile.getGameObjects())
+					{
+						if (o != null && PatchIds.isAnyPatch(o.getId()))
+						{
+							patchObjects.add(o);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/** Patches van de huidige run die nu in beeld zijn. */
+	List<GameObject> getVisiblePatches()
+	{
+		FarmPlan current = plan;
+		if (current == null)
+		{
+			return Collections.emptyList();
+		}
+		Set<Integer> ids = PatchIds.forRun(current.getRunType());
+		List<GameObject> result = new ArrayList<>();
+		for (GameObject o : patchObjects)
+		{
+			if (ids.contains(o.getId()))
+			{
+				result.add(o);
+			}
+		}
+		return result;
+	}
+
+	@Subscribe
+	public void onGameTick(GameTick tick)
+	{
+		updateHintArrow();
+	}
+
+	private void updateHintArrow()
+	{
+		Player p = client.getLocalPlayer();
+		if (!config.hintArrow() || getCurrentStep() == null || p == null)
+		{
+			clearOurHintArrow();
+			return;
+		}
+		WorldPoint me = p.getWorldLocation();
+		GameObject nearest = null;
+		int best = Integer.MAX_VALUE;
+		for (GameObject o : getVisiblePatches())
+		{
+			int d = o.getWorldLocation().distanceTo(me);
+			if (d < best)
+			{
+				best = d;
+				nearest = o;
+			}
+		}
+		if (nearest == null || best <= 2)
+		{
+			clearOurHintArrow();
+			return;
+		}
+		// Niet de pijl van een andere plugin (bijv. Quest Helper) overschrijven.
+		boolean arrowIsOurs = ourHintArrow != null && ourHintArrow.equals(client.getHintArrowPoint());
+		if (client.hasHintArrow() && !arrowIsOurs)
+		{
+			return;
+		}
+		WorldPoint target = nearest.getWorldLocation();
+		if (!target.equals(ourHintArrow))
+		{
+			client.setHintArrow(target);
+			ourHintArrow = target;
+		}
+	}
+
+	private void clearOurHintArrow()
+	{
+		if (ourHintArrow != null && client.hasHintArrow() && ourHintArrow.equals(client.getHintArrowPoint()))
+		{
+			client.clearHintArrow();
+		}
+		ourHintArrow = null;
+	}
+
+	// ------------------------------------------------------------------ teleport-keuze highlighten
+
+	@Subscribe
+	public void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		FarmPlan.Step step = getCurrentStep();
+		if (!config.highlightTeleport() || step == null || step.getTeleportOption() == null)
+		{
+			return;
+		}
+		TeleportOption t = step.getTeleportOption();
+		MenuEntry entry = event.getMenuEntry();
+		String option = Text.removeTags(entry.getOption());
+		String target = Text.removeTags(entry.getTarget());
+
+		boolean match = false;
+		if (t.getKind() == TeleportOption.Kind.SPELL)
+		{
+			match = option.equalsIgnoreCase("Cast") && target.equalsIgnoreCase(t.getSpellName());
+		}
+		else
+		{
+			String scope = step.getTeleportItem() != null ? step.getTeleportItem() : t.getMenuTarget();
+			if (scope != null && target.equalsIgnoreCase(scope))
+			{
+				String lower = option.toLowerCase(Locale.ROOT);
+				for (String wanted : t.getMenuOptions())
+				{
+					if (lower.contains(wanted.toLowerCase(Locale.ROOT)))
+					{
+						match = true;
+						break;
+					}
+				}
+			}
+		}
+		if (match)
+		{
+			entry.setOption(ColorUtil.wrapWithColorTag(option, config.highlightColor()));
+		}
+	}
+
+	@Subscribe
+	public void onClientTick(ClientTick tick)
+	{
+		// Dialoog/venster-opties zoeken, ongeveer 4x per seconde.
+		if (++tickCounter % 10 != 0)
+		{
+			return;
+		}
+		FarmPlan.Step step = getCurrentStep();
+		if (!config.highlightTeleport() || step == null || step.getTeleportOption() == null)
+		{
+			highlightedWidgets = Collections.emptyList();
+			return;
+		}
+		TeleportOption t = step.getTeleportOption();
+		if (t.getDialogOptions().isEmpty() && t.getSpellName() == null)
+		{
+			highlightedWidgets = Collections.emptyList();
+			return;
+		}
+		List<Widget> found = new ArrayList<>();
+		Widget[] roots = client.getWidgetRoots();
+		if (roots != null)
+		{
+			for (Widget root : roots)
+			{
+				findWidgets(root, t, found, 0);
+			}
+		}
+		highlightedWidgets = found;
+	}
+
+	private void findWidgets(Widget w, TeleportOption t, List<Widget> found, int depth)
+	{
+		if (w == null || w.isHidden() || depth > 25)
+		{
+			return;
+		}
+		String text = w.getText();
+		if (text != null && !text.isEmpty() && !t.getDialogOptions().isEmpty())
+		{
+			// "1: Tree Gnome Village" of "<col=..>Farming Guild</col>" -> "Tree Gnome Village" / "Farming Guild"
+			String clean = Text.removeTags(text).trim().replaceFirst("^\\d+\\s*[:.]\\s*", "");
+			for (String wanted : t.getDialogOptions())
+			{
+				if (clean.equalsIgnoreCase(wanted))
+				{
+					found.add(w);
+					break;
+				}
+			}
+		}
+		if (t.getSpellName() != null)
+		{
+			String name = w.getName();
+			if (name != null && Text.removeTags(name).equalsIgnoreCase(t.getSpellName()))
+			{
+				found.add(w);
+			}
+		}
+		findAll(w.getStaticChildren(), t, found, depth);
+		findAll(w.getDynamicChildren(), t, found, depth);
+		findAll(w.getNestedChildren(), t, found, depth);
+	}
+
+	private void findAll(Widget[] children, TeleportOption t, List<Widget> found, int depth)
+	{
+		if (children == null)
+		{
+			return;
+		}
+		for (Widget c : children)
+		{
+			findWidgets(c, t, found, depth + 1);
+		}
+	}
+
+	List<Widget> getHighlightedWidgets()
+	{
+		return highlightedWidgets;
+	}
+
+	// ------------------------------------------------------------------ bank highlight
+
+	/** Items die in de bank gemarkeerd worden: alles van het plan. */
+	Set<Integer> getBankHighlightIds()
+	{
+		FarmPlan current = plan;
+		return current == null ? Collections.emptySet() : current.getHighlightIds();
+	}
+
+	/** Items die in je inventory gemarkeerd worden: teleport en zaad van de huidige stap. */
+	Set<Integer> getInventoryHighlightIds()
+	{
+		FarmPlan.Step step = getCurrentStep();
+		if (step == null)
+		{
+			return Collections.emptySet();
+		}
+		Set<Integer> ids = new HashSet<>();
+		if (step.getTeleportItemId() > 0)
+		{
+			ids.add(step.getTeleportItemId());
+		}
+		if (step.getSeedItemId() > 0)
+		{
+			ids.add(step.getSeedItemId());
+		}
+		return ids;
+	}
+
+	FarmPlannerConfig getConfig()
+	{
+		return config;
+	}
+
+	private static BufferedImage createIcon()
+	{
+		BufferedImage img = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = img.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setColor(new Color(110, 70, 35));
+		g.fillRect(7, 9, 2, 6);
+		g.setColor(new Color(60, 170, 70));
+		g.fillOval(2, 1, 12, 10);
+		g.setColor(new Color(120, 220, 110));
+		g.fillOval(4, 3, 5, 4);
+		g.dispose();
+		return img;
+	}
+}
