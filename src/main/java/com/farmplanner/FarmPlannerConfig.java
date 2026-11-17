@@ -9,7 +9,7 @@ import net.runelite.client.config.ConfigItem;
 @ConfigGroup(FarmPlannerConfig.GROUP)
 public interface FarmPlannerConfig extends Config
 {
-	String GROUP = "farmrunplanner";
+	String GROUP = "banktopatch";
 
 	@ConfigItem(
 		keyName = "highlightBank",

@@ -1,4 +1,4 @@
-# Farm Run Planner v2
+# Bank to Patch
 
 A RuneLite plugin that looks at your bank and plans your farm run for you.
 
@@ -20,7 +20,7 @@ A RuneLite plugin that looks at your bank and plans your farm run for you.
 
 ## Usage
 
-1. Open the **Farm Run Planner v2** panel in the sidebar.
+1. Open the **Bank to Patch** panel in the sidebar.
 2. Open your bank once so the plugin can see your items.
 3. Pick a run type and click **Maak plan** ("make plan").
 4. Withdraw the highlighted items and follow the route.

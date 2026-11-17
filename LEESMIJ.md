@@ -1,4 +1,4 @@
-# Farm Run Planner v2 (RuneLite plugin)
+# Bank to Patch (RuneLite plugin)
 
 Kijkt in je bank, inventory en equipment en maakt een farm run:
 - welke zaden/saplings, compost, teleports en tools je moet meenemen
@@ -37,11 +37,11 @@ Je logt automatisch in met de opgeslagen sessie.
 
 ## Gebruik
 
-1. Klik rechts in de zijbalk op het groene boompje (Farm Run Planner v2).
+1. Klik rechts in de zijbalk op het groene boompje (Bank to Patch).
 2. Open je bank één keer.
 3. Kies de run en klik **Maak plan**.
 
-Instellingen (moersleutel -> Farm Run Planner v2): spreuken gebruiken, huis in Hosidius,
+Instellingen (moersleutel -> Bank to Patch): spreuken gebruiken, huis in Hosidius,
 Trollheim- en Lletya-patches, highlight-kleur.
 
 ## Bekende beperkingen

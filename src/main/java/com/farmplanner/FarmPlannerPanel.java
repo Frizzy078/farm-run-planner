@@ -27,7 +27,7 @@ class FarmPlannerPanel extends PluginPanel
 		setBorder(new EmptyBorder(10, 10, 10, 10));
 		setLayout(new BorderLayout(0, 10));
 
-		JLabel title = new JLabel("Farm Run Planner v2");
+		JLabel title = new JLabel("Bank to Patch");
 		title.setFont(FontManager.getRunescapeBoldFont());
 
 		JComboBox<RunType> runSelect = new JComboBox<>(RunType.values());
