@@ -49,7 +49,7 @@ import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.Text;
 
 @PluginDescriptor(
-	name = "Farm Run Planner",
+	name = "Farm Run Planner v2",
 	description = "Kijkt in je bank en maakt een farm run met route, zaden, compost en teleports",
 	tags = {"farming", "herb", "tree", "route", "teleport", "bank", "planner"}
 )
@@ -116,7 +116,7 @@ public class FarmPlannerPlugin extends Plugin
 	{
 		panel = new FarmPlannerPanel(this);
 		navButton = NavigationButton.builder()
-			.tooltip("Farm Run Planner")
+			.tooltip("Farm Run Planner v2")
 			.icon(createIcon())
 			.priority(7)
 			.panel(panel)

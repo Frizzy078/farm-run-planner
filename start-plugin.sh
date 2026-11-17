@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start RuneLite (developer mode) met de Farm Run Planner plugin, via de Gradle 'run' taak.
+# Start RuneLite (developer mode) met de Farm Run Planner v2 plugin, via de Gradle 'run' taak.
 # Inloggen met een Jagex account: zie LEESMIJ.md / https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts
 set -e
 cd "$(dirname "$0")"
