@@ -1,15 +1,22 @@
 package com.farmplanner;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTextArea;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -17,13 +24,19 @@ import net.runelite.client.ui.PluginPanel;
 
 class FarmPlannerPanel extends PluginPanel
 {
+	private static final int TEXT_WIDTH = 165;
+	private static final Color DONE_BG = new Color(28, 70, 38);
+	private static final Color DONE_TEXT = new Color(120, 230, 140);
+	private static final Color CURRENT_BG = new Color(75, 65, 20);
+	private static final Color CURRENT_BORDER = new Color(255, 200, 40);
+
+	private final FarmPlannerPlugin plugin;
 	private final JLabel status = new JLabel();
-	private final JTextArea current = new JTextArea();
-	private final JTextArea output = new JTextArea();
-	private final JPanel stepButtons = new JPanel(new GridLayout(1, 2, 5, 0));
+	private final JPanel content = new JPanel();
 
 	FarmPlannerPanel(FarmPlannerPlugin plugin)
 	{
+		this.plugin = plugin;
 		setBorder(new EmptyBorder(10, 10, 10, 10));
 		setLayout(new BorderLayout(0, 10));
 
@@ -50,52 +63,21 @@ class FarmPlannerPanel extends PluginPanel
 		buttons.add(planButton);
 		buttons.add(clearButton);
 
-		JButton prev = new JButton("< Vorige");
-		prev.addActionListener(e -> plugin.changeStep(-1));
-		JButton next = new JButton("Volgende >");
-		next.addActionListener(e -> plugin.changeStep(1));
-		stepButtons.add(prev);
-		stepButtons.add(next);
-		stepButtons.setVisible(false);
-
 		JPanel top = new JPanel(new GridLayout(0, 1, 0, 6));
 		top.add(title);
 		top.add(runSelect);
 		top.add(buttons);
 		top.add(status);
 
-		styleText(current);
-		current.setFont(FontManager.getRunescapeFont());
-		current.setForeground(ColorScheme.PROGRESS_COMPLETE_COLOR);
-		current.setVisible(false);
-		styleText(output);
+		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-		JPanel middle = new JPanel(new BorderLayout(0, 6));
-		middle.add(current, BorderLayout.NORTH);
-		middle.add(stepButtons, BorderLayout.CENTER);
-
-		JPanel north = new JPanel(new BorderLayout(0, 10));
-		north.add(top, BorderLayout.NORTH);
-		north.add(middle, BorderLayout.SOUTH);
-
-		add(north, BorderLayout.NORTH);
-		add(output, BorderLayout.CENTER);
+		add(top, BorderLayout.NORTH);
+		add(content, BorderLayout.CENTER);
 
 		setBankSeen(false);
-		output.setText("Kies een run en klik op 'Maak plan'.\n\n"
+		showMessage("Kies een run en klik op 'Maak plan'.<br><br>"
 			+ "De plugin kijkt naar je bank, inventory en equipment, "
 			+ "en zegt wat je moet meenemen en waar je heen moet.");
-	}
-
-	private static void styleText(JTextArea area)
-	{
-		area.setEditable(false);
-		area.setLineWrap(true);
-		area.setWrapStyleWord(true);
-		area.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		area.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-		area.setFont(FontManager.getRunescapeSmallFont());
 	}
 
 	void setBankSeen(boolean seen)
@@ -104,119 +86,217 @@ class FarmPlannerPanel extends PluginPanel
 		status.setForeground(seen ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_INPROGRESS_COLOR);
 	}
 
-	void showMessage(String message)
+	void showMessage(String html)
 	{
-		current.setVisible(false);
-		stepButtons.setVisible(false);
-		output.setText(message);
-		revalidate();
+		content.removeAll();
+		content.add(block(html, ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		content.revalidate();
+		content.repaint();
 	}
 
-	void showPlan(FarmPlan plan, int currentIndex)
+	void showPlan(FarmPlan plan, boolean[] done)
 	{
+		content.removeAll();
 		List<FarmPlan.Step> active = plan.getActiveSteps();
 
-		// ---- Huidige stap
+		int doneCount = 0;
+		int current = -1;
+		for (int i = 0; i < done.length; i++)
+		{
+			if (done[i])
+			{
+				doneCount++;
+			}
+			else if (current < 0)
+			{
+				current = i;
+			}
+		}
+
+		// ---- Kop met voortgang en XP
+		StringBuilder head = new StringBuilder();
+		head.append("<b>").append(plan.getRunType()).append("</b> (Farming ").append(plan.getFarmingLevel()).append(")<br>");
 		if (!active.isEmpty())
 		{
-			if (currentIndex < active.size())
-			{
-				FarmPlan.Step s = active.get(currentIndex);
-				StringBuilder c = new StringBuilder();
-				c.append("NU (").append(currentIndex + 1).append('/').append(active.size()).append("): ")
-					.append(s.getPatch().getLocation()).append('\n');
-				c.append(describeTeleport(s));
-				c.append("Plant: ").append(s.getSeed()).append('\n');
-				c.append("Compost: ").append(s.getCompost() != null ? s.getCompost() : "geen");
-				current.setText(c.toString());
-			}
-			else
-			{
-				current.setText("Run klaar! Alle " + active.size() + " patches zijn geplant.");
-			}
-			current.setVisible(true);
-			stepButtons.setVisible(true);
+			head.append("Voortgang: ").append(doneCount).append(" / ").append(active.size()).append(" patches<br>");
+			head.append("XP nu: <b>").append(xp(plan.getXpNow())).append("</b> (planten + compost)<br>");
+			head.append("XP later: <b>").append(xp(plan.getXpLater())).append("</b> ")
+				.append(plan.getRunType() == RunType.HERB ? "(oogsten, geschat)" : "(check-health volgende run)");
 		}
 		else
 		{
-			current.setVisible(false);
-			stepButtons.setVisible(false);
+			head.append("Niets te planten.");
 		}
+		content.add(block(head.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 
-		// ---- Volledig plan
-		StringBuilder sb = new StringBuilder();
-		sb.append(plan.getRunType()).append("  (Farming ").append(plan.getFarmingLevel()).append(")\n");
-		sb.append(plan.getPlantedCount()).append(" patches\n\n");
-
+		// ---- Route met groene (gedaan) en gele (huidige) stappen
 		if (!active.isEmpty())
 		{
-			sb.append("NEEM MEE UIT JE BANK\n");
-			for (Map.Entry<String, Integer> e : plan.getWithdraw().entrySet())
-			{
-				sb.append("  ").append(e.getValue()).append(" x ").append(e.getKey()).append('\n');
-			}
-			sb.append("\nROUTE\n");
+			content.add(header(current < 0 ? "ROUTE - KLAAR!" : "ROUTE (klik om af te vinken)"));
 			for (int i = 0; i < active.size(); i++)
 			{
-				FarmPlan.Step s = active.get(i);
-				String marker = i < currentIndex ? "[x] " : (i == currentIndex ? ">> " : "");
-				sb.append(marker).append(i + 1).append(". ").append(s.getPatch().getLocation()).append('\n');
-				sb.append("   ").append(describeTeleport(s).replace("\n", "\n   ").trim()).append('\n');
-				sb.append("   Plant: ").append(s.getSeed()).append('\n');
-				sb.append("   Compost: ").append(s.getCompost() != null ? s.getCompost() : "geen").append('\n');
-				sb.append("   ").append(s.getPatch().getTip()).append("\n\n");
+				content.add(stepRow(i, active.get(i), i < done.length && done[i], i == current));
 			}
 
-			int skipped = plan.getSteps().size() - active.size();
-			if (skipped > 0)
-			{
-				sb.append("Niet genoeg zaden voor ").append(skipped).append(" patch(es):\n");
-				for (FarmPlan.Step s : plan.getSteps())
-				{
-					if (s.getSeed() == null)
-					{
-						sb.append("  - ").append(s.getPatch().getLocation()).append('\n');
-					}
-				}
-				sb.append('\n');
-			}
+			JButton back = new JButton("< Terug");
+			back.addActionListener(e -> plugin.changeStep(-1));
+			JButton next = new JButton("Klaar >");
+			next.addActionListener(e -> plugin.changeStep(1));
+			JPanel nav = new JPanel(new GridLayout(1, 2, 5, 0));
+			nav.add(back);
+			nav.add(next);
+			nav.setAlignmentX(Component.LEFT_ALIGNMENT);
+			nav.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+			content.add(nav);
 		}
 
+		// ---- Meenemen
+		if (!active.isEmpty())
+		{
+			content.add(header("NEEM MEE UIT JE BANK"));
+			StringBuilder w = new StringBuilder();
+			for (Map.Entry<String, Integer> e : plan.getWithdraw().entrySet())
+			{
+				w.append(e.getValue()).append(" x ").append(esc(e.getKey())).append("<br>");
+			}
+			content.add(block(w.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		}
+
+		// ---- Waarschuwingen
 		if (!plan.getWarnings().isEmpty())
 		{
-			sb.append("LET OP\n");
-			for (String w : plan.getWarnings())
-			{
-				sb.append("  ! ").append(w).append('\n');
-			}
-			sb.append('\n');
+			content.add(header("LET OP"));
+			content.add(block(list(plan.getWarnings(), "! "), ColorScheme.DARKER_GRAY_COLOR, new Color(255, 170, 90)));
 		}
+
+		// ---- Seeds
+		if (!plan.getSeedOverview().isEmpty())
+		{
+			content.add(header("JOUW SEEDS"));
+			content.add(block(list(plan.getSeedOverview(), "- "), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		}
+
+		// ---- Saplings maken
+		if (!plan.getSaplingAdvice().isEmpty())
+		{
+			content.add(header("SAPLINGS MAKEN"));
+			content.add(block(list(plan.getSaplingAdvice(), ""), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		}
+
+		// ---- Tips
 		if (!plan.getTips().isEmpty())
 		{
-			sb.append("TIPS\n");
-			for (String t : plan.getTips())
+			content.add(header("TIPS"));
+			content.add(block(list(plan.getTips(), "- "), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		}
+
+		content.revalidate();
+		content.repaint();
+	}
+
+	private JLabel stepRow(int index, FarmPlan.Step s, boolean isDone, boolean isCurrent)
+	{
+		StringBuilder b = new StringBuilder();
+		b.append("<b>").append(index + 1).append(". ").append(esc(s.getPatch().getLocation())).append("</b>");
+		if (isDone)
+		{
+			b.append(" - GEDAAN");
+		}
+		else if (isCurrent)
+		{
+			b.append(" - NU");
+		}
+		b.append("<br>");
+		if (!isDone)
+		{
+			b.append("Teleport: ").append(s.getTeleport() != null ? esc(s.getTeleport()) : "geen - lopen").append("<br>");
+			String choice = s.getTeleportOption() != null ? s.getTeleportOption().describeChoice() : null;
+			if (choice != null)
 			{
-				sb.append("  - ").append(t).append('\n');
+				b.append("Kies: <b>").append(esc(choice)).append("</b><br>");
+			}
+			b.append("Plant: ").append(esc(s.getSeed()));
+			if (s.getCompost() != null)
+			{
+				b.append(" + ").append(esc(s.getCompost()));
+			}
+			b.append("<br>");
+			if (s.getPayment() != null)
+			{
+				b.append("Betaal gardener: ").append(esc(s.getPayment())).append("<br>");
+			}
+			if (isCurrent)
+			{
+				b.append("<i>").append(esc(s.getPatch().getTip())).append("</i>");
 			}
 		}
 
-		output.setText(sb.toString());
-		output.setCaretPosition(0);
-		revalidate();
+		Color bg = isDone ? DONE_BG : isCurrent ? CURRENT_BG : ColorScheme.DARKER_GRAY_COLOR;
+		Color fg = isDone ? DONE_TEXT : isCurrent ? Color.WHITE : ColorScheme.LIGHT_GRAY_COLOR;
+		JLabel row = block(b.toString(), bg, fg);
+		if (isCurrent)
+		{
+			row.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createMatteBorder(0, 0, 3, 0, ColorScheme.DARK_GRAY_COLOR),
+				BorderFactory.createCompoundBorder(
+					BorderFactory.createLineBorder(CURRENT_BORDER, 1),
+					BorderFactory.createEmptyBorder(5, 5, 5, 5))));
+		}
+		row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		row.setToolTipText(isDone ? "Klik om weer open te zetten" : "Klik om als gedaan te markeren");
+		row.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				plugin.toggleDone(index);
+			}
+		});
+		return row;
 	}
 
-	private static String describeTeleport(FarmPlan.Step s)
+	private static JLabel header(String text)
 	{
-		if (s.getTeleport() == null)
+		JLabel l = new JLabel(text);
+		l.setFont(FontManager.getRunescapeSmallFont());
+		l.setForeground(ColorScheme.BRAND_ORANGE);
+		l.setBorder(new EmptyBorder(8, 0, 3, 0));
+		l.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return l;
+	}
+
+	private static JLabel block(String html, Color bg, Color fg)
+	{
+		JLabel l = new JLabel("<html><div style='width:" + TEXT_WIDTH + "px'>" + html + "</div></html>");
+		l.setOpaque(true);
+		l.setBackground(bg);
+		l.setForeground(fg);
+		l.setFont(FontManager.getRunescapeSmallFont());
+		l.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 3, 0, ColorScheme.DARK_GRAY_COLOR),
+			BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+		l.setAlignmentX(Component.LEFT_ALIGNMENT);
+		l.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+		return l;
+	}
+
+	private static String list(List<String> items, String bullet)
+	{
+		StringBuilder b = new StringBuilder();
+		for (String s : items)
 		{
-			return "Teleport: geen - lopen\n";
-		}
-		StringBuilder b = new StringBuilder("Teleport: ").append(s.getTeleport()).append('\n');
-		String choice = s.getTeleportOption() != null ? s.getTeleportOption().describeChoice() : null;
-		if (choice != null)
-		{
-			b.append("Kies: ").append(choice).append('\n');
+			b.append(bullet).append(esc(s)).append("<br>");
 		}
 		return b.toString();
+	}
+
+	private static String xp(double value)
+	{
+		return String.format(Locale.forLanguageTag("nl"), "%,.0f", value);
+	}
+
+	private static String esc(String s)
+	{
+		return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
 	}
 }

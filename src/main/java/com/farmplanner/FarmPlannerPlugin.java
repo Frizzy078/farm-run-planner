@@ -100,7 +100,8 @@ public class FarmPlannerPlugin extends Plugin
 
 	private volatile boolean bankSeen;
 	private volatile FarmPlan plan;
-	private volatile int stepIndex;
+	/** Per route-stap: gedaan (groen) of nog niet. */
+	private volatile boolean[] done = new boolean[0];
 	private int lastSeedCount = -1;
 	private WorldPoint ourHintArrow;
 	private int tickCounter;
@@ -252,15 +253,49 @@ public class FarmPlannerPlugin extends Plugin
 				config.houseInHosidius(),
 				config.includeTrollheim(),
 				config.includeLletya(),
-				Math.max(0, config.coinsPerTree()));
+				Math.max(0, config.coinsPerTree()),
+				config.payProtection());
 
 			FarmPlan newPlan = PlanBuilder.build(type, owned, farming, magic, options);
+			done = new boolean[newPlan.getActiveSteps().size()];
 			plan = newPlan;
-			stepIndex = 0;
 			lastSeedCount = -1;
 			checkSeedPlanted(client.getItemContainer(INVENTORY));
-			SwingUtilities.invokeLater(() -> panel.showPlan(newPlan, 0));
+			refreshPanel();
 		});
+	}
+
+	private void refreshPanel()
+	{
+		FarmPlan current = plan;
+		if (current == null)
+		{
+			return;
+		}
+		boolean[] snapshot = done.clone();
+		SwingUtilities.invokeLater(() -> panel.showPlan(current, snapshot));
+	}
+
+	/** Klik op een stap in het paneel: gedaan / niet gedaan. */
+	void toggleDone(int index)
+	{
+		boolean[] d = done;
+		if (index < 0 || index >= d.length)
+		{
+			return;
+		}
+		d[index] = !d[index];
+		afterStepChange();
+	}
+
+	private void afterStepChange()
+	{
+		clientThread.invokeLater(() ->
+		{
+			lastSeedCount = -1;
+			checkSeedPlanted(client.getItemContainer(INVENTORY));
+		});
+		refreshPanel();
 	}
 
 	void clearPlan()
@@ -273,23 +308,51 @@ public class FarmPlannerPlugin extends Plugin
 		});
 	}
 
-	/** +1 = volgende stap, -1 = vorige stap. */
+	/**
+	 * +1 = huidige stap afvinken (gedaan, groen).
+	 * -1 = laatst afgevinkte stap weer open zetten.
+	 */
 	void changeStep(int delta)
 	{
-		FarmPlan current = plan;
-		if (current == null)
+		boolean[] d = done;
+		if (plan == null || d.length == 0)
 		{
 			return;
 		}
-		int max = current.getActiveSteps().size();
-		int next = Math.max(0, Math.min(max, stepIndex + delta));
-		stepIndex = next;
-		clientThread.invokeLater(() ->
+		if (delta > 0)
 		{
-			lastSeedCount = -1;
-			checkSeedPlanted(client.getItemContainer(INVENTORY));
-		});
-		SwingUtilities.invokeLater(() -> panel.showPlan(current, next));
+			int i = currentIndex();
+			if (i >= 0)
+			{
+				d[i] = true;
+			}
+		}
+		else
+		{
+			for (int i = d.length - 1; i >= 0; i--)
+			{
+				if (d[i])
+				{
+					d[i] = false;
+					break;
+				}
+			}
+		}
+		afterStepChange();
+	}
+
+	/** Index van de eerste stap die nog niet gedaan is, of -1 als alles klaar is. */
+	private int currentIndex()
+	{
+		boolean[] d = done;
+		for (int i = 0; i < d.length; i++)
+		{
+			if (!d[i])
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/** Huidige stap, of null als er geen plan is of de run klaar is. */
@@ -301,8 +364,8 @@ public class FarmPlannerPlugin extends Plugin
 			return null;
 		}
 		List<FarmPlan.Step> steps = current.getActiveSteps();
-		int i = stepIndex;
-		return i < steps.size() ? steps.get(i) : null;
+		int i = currentIndex();
+		return i >= 0 && i < steps.size() ? steps.get(i) : null;
 	}
 
 	FarmPlan getPlan()
@@ -476,31 +539,95 @@ public class FarmPlannerPlugin extends Plugin
 		String option = Text.removeTags(entry.getOption());
 		String target = Text.removeTags(entry.getTarget());
 
-		boolean match = false;
+		Color color = config.highlightColor();
 		if (t.getKind() == TeleportOption.Kind.SPELL)
 		{
-			match = option.equalsIgnoreCase("Cast") && target.equalsIgnoreCase(t.getSpellName());
-		}
-		else
-		{
-			String scope = step.getTeleportItem() != null ? step.getTeleportItem() : t.getMenuTarget();
-			if (scope != null && target.equalsIgnoreCase(scope))
+			if (option.equalsIgnoreCase("Cast") && target.equalsIgnoreCase(t.getSpellName()))
 			{
-				String lower = option.toLowerCase(Locale.ROOT);
-				for (String wanted : t.getMenuOptions())
-				{
-					if (lower.contains(wanted.toLowerCase(Locale.ROOT)))
-					{
-						match = true;
-						break;
-					}
-				}
+				entry.setOption(ColorUtil.wrapWithColorTag(option, color));
+			}
+			return;
+		}
+
+		// Keuze in een teleport-venster (bijv. "Xeric's Glade", "Burthorpe") als menu-optie of -target.
+		for (String wanted : t.getDialogOptions())
+		{
+			if (matchesChoice(option, wanted))
+			{
+				entry.setOption(ColorUtil.wrapWithColorTag(option, color));
+				return;
+			}
+			if (matchesChoice(target, wanted))
+			{
+				entry.setTarget(ColorUtil.wrapWithColorTag(target, color));
+				return;
 			}
 		}
-		if (match)
+
+		// Rechtermuisklik op het teleport-item zelf (elke lading, bijv. Games necklace(1) t/m (8)).
+		boolean isTeleportItem = t.getKind() == TeleportOption.Kind.FREE
+			? t.getMenuTarget() != null && target.equalsIgnoreCase(t.getMenuTarget())
+			: matchesItem(t, target);
+		if (!isTeleportItem)
 		{
-			entry.setOption(ColorUtil.wrapWithColorTag(option, config.highlightColor()));
+			return;
 		}
+		String lower = option.toLowerCase(Locale.ROOT);
+		for (String wanted : t.getMenuOptions())
+		{
+			if (lower.contains(wanted.toLowerCase(Locale.ROOT)))
+			{
+				entry.setOption(ColorUtil.wrapWithColorTag(option, color));
+				return;
+			}
+		}
+	}
+
+	/** Hoort deze itemnaam bij de teleport (patronen als "Games necklace(" matchen elke lading)? */
+	private static boolean matchesItem(TeleportOption t, String itemName)
+	{
+		String name = itemName.toLowerCase(Locale.ROOT).trim();
+		for (String pattern : t.getItemPatterns())
+		{
+			String p = pattern.toLowerCase(Locale.ROOT);
+			boolean prefix = p.endsWith("(") || p.endsWith("*");
+			if (p.endsWith("*"))
+			{
+				p = p.substring(0, p.length() - 1);
+			}
+			if (prefix ? name.startsWith(p) : name.equals(p))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Komt een tekst uit een venster overeen met de gewenste keuze?
+	 * Werkt ook met nummers of kleine toevoegingen: "2: Xeric's Glade", "2 Xeric's Glade", "Burthorpe."
+	 */
+	static boolean matchesChoice(String text, String wanted)
+	{
+		if (text == null)
+		{
+			return false;
+		}
+		String clean = Text.removeTags(text).trim().toLowerCase(Locale.ROOT);
+		String w = wanted.toLowerCase(Locale.ROOT);
+		return clean.contains(w) && clean.length() <= w.length() + 8;
+	}
+
+	/** Is dit item het teleport-item van de huidige stap (elke lading)? */
+	boolean isCurrentTeleportItem(int itemId)
+	{
+		FarmPlan.Step step = getCurrentStep();
+		if (step == null || step.getTeleportOption() == null
+			|| step.getTeleportOption().getKind() != TeleportOption.Kind.ITEM)
+		{
+			return false;
+		}
+		return matchesItem(step.getTeleportOption(), itemManager.getItemComposition(itemId).getName());
 	}
 
 	@Subscribe
@@ -541,18 +668,13 @@ public class FarmPlannerPlugin extends Plugin
 		{
 			return;
 		}
-		String text = w.getText();
-		if (text != null && !text.isEmpty() && !t.getDialogOptions().isEmpty())
+		// Keuzes staan soms in de tekst ("1: Tree Gnome Village") en soms in de naam van een knop.
+		for (String wanted : t.getDialogOptions())
 		{
-			// "1: Tree Gnome Village" of "<col=..>Farming Guild</col>" -> "Tree Gnome Village" / "Farming Guild"
-			String clean = Text.removeTags(text).trim().replaceFirst("^\\d+\\s*[:.]\\s*", "");
-			for (String wanted : t.getDialogOptions())
+			if (matchesChoice(w.getText(), wanted) || matchesChoice(w.getName(), wanted))
 			{
-				if (clean.equalsIgnoreCase(wanted))
-				{
-					found.add(w);
-					break;
-				}
+				found.add(w);
+				break;
 			}
 		}
 		if (t.getSpellName() != null)

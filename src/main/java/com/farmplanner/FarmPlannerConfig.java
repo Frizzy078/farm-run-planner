@@ -68,6 +68,17 @@ public interface FarmPlannerConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "payProtection",
+		name = "Bomen laten beschermen",
+		description = "Neem de betaling voor de gardener mee (bijv. 10 cactus spines per Yew) zodat je bomen niet doodgaan",
+		position = 14
+	)
+	default boolean payProtection()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "coinsPerTree",
 		name = "Coins per boom",
 		description = "Coins die je meeneemt per (fruit)boom om de oude boom te laten weghalen",

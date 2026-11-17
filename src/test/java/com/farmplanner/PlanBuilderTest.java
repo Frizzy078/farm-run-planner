@@ -107,6 +107,54 @@ public class PlanBuilderTest
 	}
 
 	@Test
+	public void treeRunTakesProtectionPaymentAndCountsXp()
+	{
+		OwnedItems owned = bank("Yew sapling", 2, "Cactus spine", 15, "Spade", 1, "Rake", 1, "Coins", 1000);
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, PlanOptions.defaults());
+		assertEquals(2, plan.getPlantedCount());
+		// 10 spines per Yew: eerste boom betaald, tweede niet (5 over)
+		assertEquals(Integer.valueOf(10), plan.getWithdraw().get("Cactus spine"));
+		assertEquals("10 cactus spines", plan.getActiveSteps().get(0).getPayment());
+		assertNull(plan.getActiveSteps().get(1).getPayment());
+		assertTrue(plan.getWarnings().stream().anyMatch(w -> w.startsWith("Geen bescherming voor Yew")));
+		// XP: 2 x 81 planten nu, 2 x 7069.9 check-health later
+		assertEquals(162, plan.getXpNow(), 0.01);
+		assertEquals(14139.8, plan.getXpLater(), 0.01);
+	}
+
+	@Test
+	public void herbXpIncludesCompostAndEstimatedHarvest()
+	{
+		OwnedItems owned = bank("Ranarr seed", 1, "Ultracompost", 1, "Ectophial", 1);
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 40, 1, PlanOptions.defaults());
+		assertEquals(27 + 36, plan.getXpNow(), 0.01);
+		assertEquals(30.5 * Seed.AVG_HERBS_PER_PATCH, plan.getXpLater(), 0.01);
+	}
+
+	@Test
+	public void saplingAdviceSuggestsBestTreeAndCountsSeeds()
+	{
+		OwnedItems owned = bank("Maple sapling", 5, "Yew seed", 3, "Plant pot", 1, "Gardening trowel", 1,
+			"Watering can(8)", 1);
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 62, 1, PlanOptions.defaults());
+		assertTrue(plan.getSaplingAdvice().get(0).startsWith("Beste boom op jouw level: Yew"));
+		assertTrue(plan.getSaplingAdvice().stream().anyMatch(a -> a.startsWith("Je kunt maken: 3 x Yew sapling")));
+		assertTrue(plan.getSaplingAdvice().stream().anyMatch(a -> a.contains("je hebt er 1")
+			&& a.contains("Gardening trowel (heb je)") && a.contains("Watering can (heb je)")));
+		assertTrue(plan.getTips().stream().anyMatch(t -> t.startsWith("Maak eerst saplings van je Yew seeds")));
+		assertTrue(plan.getSeedOverview().stream().anyMatch(s -> s.startsWith("3 x Yew seed")));
+	}
+
+	@Test
+	public void noProtectionWhenDisabled()
+	{
+		OwnedItems owned = bank("Yew sapling", 1, "Cactus spine", 50);
+		PlanOptions noPay = new PlanOptions(true, false, false, false, 200, false);
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, noPay);
+		assertNull(plan.getWithdraw().get("Cactus spine"));
+	}
+
+	@Test
 	public void prefixMatchFindsChargedJewellery()
 	{
 		OwnedItems owned = bank("Skills necklace", 1, "Skills necklace(2)", 1);

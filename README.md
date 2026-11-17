@@ -10,7 +10,12 @@ A RuneLite plugin that looks at your bank and plans your farm run for you.
   - compost (Ultracompost > Supercompost > Compost, or a Bottomless compost bucket),
   - the best **teleport you own** for every patch (Ardougne cloak, Explorer's ring, Ectophial,
     Xeric's talisman, Skills necklace, tablets, or spells if you have the runes),
-  - the tools you need and the **coins** you need (tree removal and the Brimhaven boat).
+  - the tools you need and the **coins** you need (tree removal and the Brimhaven boat),
+  - the **protection payment** for the gardener for every tree (e.g. 10 cactus spines for a yew).
+- **XP per run**: XP you get now (planting + compost) and later (check-health / harvest).
+- **Seed overview**: how many runs your seeds and saplings last, and which tree seeds still need to become saplings.
+- **Making saplings**: the best tree for your Farming level, how many saplings you can make and what you need.
+- **Route tracker**: finished patches turn green, the current patch is yellow; click a step to tick it off.
 - **Bank highlight**: everything you need to withdraw gets a coloured box in your bank.
 - **Step-by-step guidance**:
   - highlights the correct right-click option on your teleport item (e.g. *Rub* on a Skills necklace),

@@ -20,6 +20,7 @@ public final class FarmPlan
 		private String teleportItem;
 		private int teleportItemId = -1;
 		private int seedItemId = -1;
+		private String payment;
 
 		Step(Patch patch, String teleport, String seed, String compost)
 		{
@@ -73,6 +74,17 @@ public final class FarmPlan
 			return seedItemId;
 		}
 
+		/** Betaling voor de gardener (bijv. "10 cactus spines"), of null. */
+		public String getPayment()
+		{
+			return payment;
+		}
+
+		void setPayment(String payment)
+		{
+			this.payment = payment;
+		}
+
 		/** null = geen teleport gevonden. */
 		public String getTeleport()
 		{
@@ -99,6 +111,10 @@ public final class FarmPlan
 	private final Set<Integer> highlightIds = new HashSet<>();
 	private final List<String> warnings = new ArrayList<>();
 	private final List<String> tips = new ArrayList<>();
+	private final List<String> saplingAdvice = new ArrayList<>();
+	private final List<String> seedOverview = new ArrayList<>();
+	private double xpNow;
+	private double xpLater;
 
 	FarmPlan(RunType runType, int farmingLevel)
 	{
@@ -135,6 +151,34 @@ public final class FarmPlan
 	void tip(String tip)
 	{
 		tips.add(tip);
+	}
+
+	void addXp(double now, double later)
+	{
+		xpNow += now;
+		xpLater += later;
+	}
+
+	/** XP die je deze run krijgt (planten + compost). */
+	public double getXpNow()
+	{
+		return xpNow;
+	}
+
+	/** XP die je later krijgt (Check-health bij bomen, oogsten bij herbs - geschat). */
+	public double getXpLater()
+	{
+		return xpLater;
+	}
+
+	public List<String> getSaplingAdvice()
+	{
+		return saplingAdvice;
+	}
+
+	public List<String> getSeedOverview()
+	{
+		return seedOverview;
 	}
 
 	public RunType getRunType()
