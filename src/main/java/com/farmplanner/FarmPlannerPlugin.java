@@ -102,6 +102,10 @@ public class FarmPlannerPlugin extends Plugin
 	private volatile FarmPlan plan;
 	/** Per route-stap: gedaan (groen) of nog niet. */
 	private volatile boolean[] done = new boolean[0];
+	/** Wat je bij je hebt: itemnaam (kleine letters) -> aantal. */
+	private volatile Map<String, Integer> carried = Collections.emptyMap();
+	/** Meeneem-items die je nog mist (worden in de bank gemarkeerd). */
+	private volatile Set<Integer> missingIds = Collections.emptySet();
 	private int lastSeedCount = -1;
 	private WorldPoint ourHintArrow;
 	private int tickCounter;
@@ -182,6 +186,38 @@ public class FarmPlannerPlugin extends Plugin
 			bankSeen = true;
 			SwingUtilities.invokeLater(() -> panel.setBankSeen(true));
 		}
+		else
+		{
+			updateCarried();
+		}
+	}
+
+	/** Telt wat je bij je hebt (inventory + equipment) en ververst het paneel. Op de client thread. */
+	private void updateCarried()
+	{
+		Map<String, Integer> counts = new HashMap<>();
+		for (int id : new int[]{INVENTORY, EQUIPMENT})
+		{
+			Item[] items = containers.get(id);
+			if (items == null)
+			{
+				continue;
+			}
+			for (Item item : items)
+			{
+				if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)
+				{
+					continue;
+				}
+				// Genoteerde items hebben dezelfde naam, dus tellen ook mee (bijv. noted cactus spines).
+				String name = itemManager.getItemComposition(item.getId()).getName();
+				counts.merge(name.toLowerCase(Locale.ROOT), item.getQuantity(), Integer::sum);
+			}
+		}
+		carried = counts;
+		FarmPlan current = plan;
+		missingIds = current == null ? Collections.emptySet() : current.missingIds(counts);
+		refreshPanel();
 	}
 
 	/**
@@ -261,7 +297,7 @@ public class FarmPlannerPlugin extends Plugin
 			plan = newPlan;
 			lastSeedCount = -1;
 			checkSeedPlanted(client.getItemContainer(INVENTORY));
-			refreshPanel();
+			updateCarried(); // berekent wat je al bij je hebt en ververst het paneel
 		});
 	}
 
@@ -273,7 +309,8 @@ public class FarmPlannerPlugin extends Plugin
 			return;
 		}
 		boolean[] snapshot = done.clone();
-		SwingUtilities.invokeLater(() -> panel.showPlan(current, snapshot));
+		Map<String, Integer> have = carried;
+		SwingUtilities.invokeLater(() -> panel.showPlan(current, snapshot, have));
 	}
 
 	/** Klik op een stap in het paneel: gedaan / niet gedaan. */
@@ -713,7 +750,8 @@ public class FarmPlannerPlugin extends Plugin
 	Set<Integer> getBankHighlightIds()
 	{
 		FarmPlan current = plan;
-		return current == null ? Collections.emptySet() : current.getHighlightIds();
+		// Alleen wat je nog niet (genoeg) bij je hebt.
+		return current == null ? Collections.emptySet() : missingIds;
 	}
 
 	/** Items die in je inventory gemarkeerd worden: teleport en zaad van de huidige stap. */

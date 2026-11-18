@@ -109,6 +109,8 @@ public final class FarmPlan
 	private final List<Step> steps = new ArrayList<>();
 	private final Map<String, Integer> withdraw = new LinkedHashMap<>();
 	private final Set<Integer> highlightIds = new HashSet<>();
+	private final Map<String, Integer> withdrawIds = new java.util.HashMap<>();
+	private final Map<String, String> anyChargePrefix = new java.util.HashMap<>();
 	private final List<String> warnings = new ArrayList<>();
 	private final List<String> tips = new ArrayList<>();
 	private final List<String> saplingAdvice = new ArrayList<>();
@@ -131,6 +133,7 @@ public final class FarmPlan
 	{
 		withdraw.merge(item.getName(), amount, Integer::sum);
 		highlightIds.add(item.getId());
+		withdrawIds.put(item.getName(), item.getId());
 	}
 
 	/** Voor herbruikbare items: hooguit 1 meenemen. */
@@ -138,6 +141,62 @@ public final class FarmPlan
 	{
 		withdraw.putIfAbsent(item.getName(), 1);
 		highlightIds.add(item.getId());
+		withdrawIds.put(item.getName(), item.getId());
+	}
+
+	/**
+	 * Dit item mag met elke lading meetellen, bijv. "Games necklace(" voor Games necklace(1) t/m (8).
+	 */
+	void allowAnyCharge(String itemName, String prefixPattern)
+	{
+		if (prefixPattern.endsWith("(") || prefixPattern.endsWith("*"))
+		{
+			anyChargePrefix.put(itemName, prefixPattern.endsWith("*")
+				? prefixPattern.substring(0, prefixPattern.length() - 1)
+				: prefixPattern);
+		}
+	}
+
+	/**
+	 * Hoeveel heb je van dit meeneem-item bij je?
+	 *
+	 * @param carried itemnaam (kleine letters) -> aantal, uit je inventory en equipment
+	 */
+	public int countCarried(String itemName, Map<String, Integer> carried)
+	{
+		String prefix = anyChargePrefix.get(itemName);
+		if (prefix == null)
+		{
+			return carried.getOrDefault(itemName.toLowerCase(java.util.Locale.ROOT), 0);
+		}
+		String p = prefix.toLowerCase(java.util.Locale.ROOT);
+		int total = 0;
+		for (Map.Entry<String, Integer> e : carried.entrySet())
+		{
+			if (e.getKey().startsWith(p))
+			{
+				total += e.getValue();
+			}
+		}
+		return total;
+	}
+
+	/** Item-ID's die je nog niet (genoeg) bij je hebt: die worden in de bank gemarkeerd. */
+	public Set<Integer> missingIds(Map<String, Integer> carried)
+	{
+		Set<Integer> result = new HashSet<>();
+		for (Map.Entry<String, Integer> e : withdraw.entrySet())
+		{
+			if (countCarried(e.getKey(), carried) < e.getValue())
+			{
+				Integer id = withdrawIds.get(e.getKey());
+				if (id != null)
+				{
+					result.add(id);
+				}
+			}
+		}
+		return result;
 	}
 
 	void warn(String warning)

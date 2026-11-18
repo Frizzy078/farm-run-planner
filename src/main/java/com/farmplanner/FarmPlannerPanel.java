@@ -29,6 +29,9 @@ class FarmPlannerPanel extends PluginPanel
 	private static final Color DONE_TEXT = new Color(120, 230, 140);
 	private static final Color CURRENT_BG = new Color(75, 65, 20);
 	private static final Color CURRENT_BORDER = new Color(255, 200, 40);
+	/** Groen: heb je bij je. Oranje: mis je nog. */
+	private static final String HAVE_HEX = "#78e68c";
+	private static final String MISSING_HEX = "#ffaa5a";
 
 	private final FarmPlannerPlugin plugin;
 	private final JLabel status = new JLabel();
@@ -94,7 +97,7 @@ class FarmPlannerPanel extends PluginPanel
 		content.repaint();
 	}
 
-	void showPlan(FarmPlan plan, boolean[] done)
+	void showPlan(FarmPlan plan, boolean[] done, Map<String, Integer> carried)
 	{
 		content.removeAll();
 		List<FarmPlan.Step> active = plan.getActiveSteps();
@@ -153,12 +156,30 @@ class FarmPlannerPanel extends PluginPanel
 		// ---- Meenemen
 		if (!active.isEmpty())
 		{
-			content.add(header("NEEM MEE UIT JE BANK"));
 			StringBuilder w = new StringBuilder();
+			int complete = 0;
 			for (Map.Entry<String, Integer> e : plan.getWithdraw().entrySet())
 			{
-				w.append(e.getValue()).append(" x ").append(esc(e.getKey())).append("<br>");
+				int need = e.getValue();
+				int have = plan.countCarried(e.getKey(), carried);
+				boolean ok = have >= need;
+				if (ok)
+				{
+					complete++;
+					w.append("<font color='").append(HAVE_HEX).append("'>").append(need).append(" x ")
+						.append(esc(e.getKey())).append(" - OK</font><br>");
+				}
+				else
+				{
+					w.append("<font color='").append(MISSING_HEX).append("'>").append(need).append(" x ")
+						.append(esc(e.getKey())).append(" (").append(have).append('/').append(need)
+						.append(")</font><br>");
+				}
 			}
+			int total = plan.getWithdraw().size();
+			content.add(header(complete == total
+				? "NEEM MEE - ALLES BIJ JE!"
+				: "NEEM MEE UIT JE BANK (" + complete + "/" + total + " compleet)"));
 			content.add(block(w.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 		}
 

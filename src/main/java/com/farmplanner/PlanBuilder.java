@@ -385,6 +385,7 @@ public final class PlanBuilder
 							else
 							{
 								plan.withdrawOnce(e);
+								plan.allowAnyCharge(e.getName(), pattern);
 							}
 							return new Chosen(opt, e);
 						}

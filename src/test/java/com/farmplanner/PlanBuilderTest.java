@@ -155,6 +155,27 @@ public class PlanBuilderTest
 	}
 
 	@Test
+	public void carriedItemsAreCountedIncludingAnyJewelleryCharge()
+	{
+		OwnedItems owned = bank("Willow sapling", 10, "Games necklace(8)", 2, "Spade", 1, "Rake", 1, "Coins", 5000,
+			"Apples(5)", 10);
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 30, 1, PlanOptions.defaults());
+		assertEquals(Integer.valueOf(1), plan.getWithdraw().get("Games necklace(8)"));
+
+		java.util.Map<String, Integer> carried = new java.util.HashMap<>();
+		carried.put("games necklace(5)", 1);   // andere lading telt ook
+		carried.put("willow sapling", 3);      // 3 van de 5
+		assertEquals(1, plan.countCarried("Games necklace(8)", carried));
+		assertEquals(3, plan.countCarried("Willow sapling", carried));
+		assertEquals(0, plan.countCarried("Spade", carried));
+
+		java.util.Set<Integer> missing = plan.missingIds(carried);
+		assertTrue(missing.contains(owned.get("Willow sapling").getId()));
+		assertTrue(missing.contains(owned.get("Spade").getId()));
+		assertTrue(!missing.contains(owned.get("Games necklace(8)").getId()));
+	}
+
+	@Test
 	public void prefixMatchFindsChargedJewellery()
 	{
 		OwnedItems owned = bank("Skills necklace", 1, "Skills necklace(2)", 1);
