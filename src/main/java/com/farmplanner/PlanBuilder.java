@@ -23,22 +23,25 @@ public final class PlanBuilder
 	{
 		final TeleportOption option;
 		final OwnedItems.Entry item;
+		final Language lang;
 
-		Chosen(TeleportOption option, OwnedItems.Entry item)
+		Chosen(TeleportOption option, OwnedItems.Entry item, Language lang)
 		{
+			this.lang = lang;
 			this.option = option;
 			this.item = item;
 		}
 
 		String describe()
 		{
-			return item != null ? option.getLabel() + " [" + item.getName() + "]" : option.getLabel();
+			return item != null ? option.getLabel(lang) + " [" + item.getName() + "]" : option.getLabel(lang);
 		}
 	}
 
 	public static FarmPlan build(RunType type, OwnedItems owned, int farmingLevel, int magicLevel, PlanOptions options)
 	{
-		FarmPlan plan = new FarmPlan(type, farmingLevel);
+		Language lang = options.getLanguage();
+		FarmPlan plan = new FarmPlan(type, farmingLevel, lang);
 		OwnedItems left = owned.copy();
 
 		// 1. Zaden: hoogste level eerst, die je kunt planten en hebt.
@@ -53,8 +56,11 @@ public final class PlanBuilder
 		}
 		if (seedQueue.isEmpty())
 		{
-			plan.warn("Geen " + (type == RunType.HERB ? "zaden" : "saplings")
-				+ " gevonden die je met " + farmingLevel + " Farming kunt planten.");
+			plan.warn(lang.t(
+				"No " + (type == RunType.HERB ? "seeds" : "saplings") + " found that you can plant with "
+					+ farmingLevel + " Farming.",
+				"Geen " + (type == RunType.HERB ? "zaden" : "saplings")
+					+ " gevonden die je met " + farmingLevel + " Farming kunt planten."));
 		}
 
 		boolean bottomless = left.count(BOTTOMLESS) > 0;
@@ -77,7 +83,8 @@ public final class PlanBuilder
 			Chosen teleport = chooseTeleport(patch, left, magicLevel, options, plan);
 			if (teleport == null)
 			{
-				plan.warn("Geen teleport gevonden voor " + patch.getLocation() + " - je moet er naartoe lopen.");
+				plan.warn(lang.t("No teleport found for " + patch.getLocation() + " - you will have to walk there.",
+					"Geen teleport gevonden voor " + patch.getLocation() + " - je moet er naartoe lopen."));
 			}
 
 			String compost = takeCompost(left, bottomless, plan);
@@ -119,14 +126,18 @@ public final class PlanBuilder
 
 		if (type != RunType.HERB)
 		{
-			plan.tip("Geef de betaling aan de gardener bij de patch (Pay) - dan kan je boom niet doodgaan. "
-				+ "Genoteerde items (noted) worden ook geaccepteerd.");
+			plan.tip(lang.t("Give the payment to the gardener at the patch (Pay) so your tree can't die. "
+				+ "Noted items are accepted too.",
+				"Geef de betaling aan de gardener bij de patch (Pay) - dan kan je boom niet doodgaan. "
+				+ "Genoteerde items (noted) worden ook geaccepteerd."));
 		}
 		else
 		{
-			plan.tip("Vergeet niet je herbs te oogsten voordat je opnieuw plant.");
+			plan.tip(lang.t("Don't forget to harvest your herbs before planting again.",
+				"Vergeet niet je herbs te oogsten voordat je opnieuw plant."));
 		}
-		plan.tip("Zaden in de Seed vault van de Farming Guild worden niet meegeteld.");
+		plan.tip(lang.t("Seeds in the Farming Guild seed vault are not counted.",
+			"Zaden in de Seed vault van de Farming Guild worden niet meegeteld."));
 		return plan;
 	}
 
@@ -158,18 +169,16 @@ public final class PlanBuilder
 		{
 			left.use(pay.getName(), seed.getPaymentQty());
 			plan.withdraw(pay, seed.getPaymentQty());
-			step.setPayment(seed.getPaymentLabel());
+			step.setPayment(seed.getPaymentLabel(plan.getLanguage()));
 		}
 		else
 		{
-			plan.warn("Geen bescherming voor " + seed.getItemName().replace(" sapling", "") + " in "
-				+ patch.getLocation() + ": je mist " + seed.getPaymentLabel() + " (" + seed.getPaymentItem() + ").");
+			Language lang = plan.getLanguage();
+			String tree = seed.getItemName().replace(" sapling", "");
+			String label = seed.getPaymentLabel(lang) + " (" + seed.getPaymentItem() + ")";
+			plan.warn(lang.t("No protection for " + tree + " in " + patch.getLocation() + ": you are missing " + label + ".",
+				"Geen bescherming voor " + tree + " in " + patch.getLocation() + ": je mist " + label + "."));
 		}
-	}
-
-	private static String xp(double value)
-	{
-		return String.format(java.util.Locale.forLanguageTag("nl"), "%,.0f", value);
 	}
 
 	private static String treeName(Seed s)
@@ -181,6 +190,7 @@ public final class PlanBuilder
 	private static void addSeedOverview(RunType type, OwnedItems owned, int farmingLevel, FarmPlan plan)
 	{
 		List<String> out = plan.getSeedOverview();
+		Language lang = plan.getLanguage();
 		int patches = plan.getSteps().size();
 		int usable = 0;
 		Seed bestUsed = null;
@@ -193,7 +203,8 @@ public final class PlanBuilder
 			}
 			if (farmingLevel < s.getLevel())
 			{
-				out.add(n + " x " + s.getItemName() + " - nog niet te planten (level " + s.getLevel() + ")");
+				out.add(n + " x " + s.getItemName() + lang.t(" - can't plant yet (level ", " - nog niet te planten (level ")
+					+ s.getLevel() + ")");
 				continue;
 			}
 			usable += n;
@@ -201,8 +212,10 @@ public final class PlanBuilder
 			{
 				bestUsed = s;
 			}
-			String runs = patches > 0 ? " - genoeg voor " + (n / patches) + " volle run(s)" : "";
-			out.add(n + " x " + s.getItemName() + " (" + xp(s.getXpTotal()) + " XP per patch)" + runs);
+			String runs = patches > 0
+				? lang.t(" - enough for " + (n / patches) + " full run(s)", " - genoeg voor " + (n / patches) + " volle run(s)")
+				: "";
+			out.add(n + " x " + s.getItemName() + " (" + lang.number(s.getXpTotal()) + " XP per patch)" + runs);
 		}
 
 		if (type != RunType.HERB)
@@ -213,28 +226,35 @@ public final class PlanBuilder
 				int seedlings = owned.count(s.getSeedlingName()) + owned.count(s.getSeedlingName() + " (w)");
 				if (seeds > 0)
 				{
-					out.add(seeds + " x " + s.getTreeSeedName() + " - nog geen sapling (zie Saplings maken)");
+					out.add(seeds + " x " + s.getTreeSeedName()
+						+ lang.t(" - not a sapling yet (see Making saplings)", " - nog geen sapling (zie Saplings maken)"));
 				}
 				if (seedlings > 0)
 				{
-					out.add(seedlings + " x " + s.getSeedlingName() + " - groeit nog (geef water als hij droog is)");
+					out.add(seedlings + " x " + s.getSeedlingName()
+						+ lang.t(" - still growing (water it if it is dry)", " - groeit nog (geef water als hij droog is)"));
 				}
 				// Betere zaden die nog geen sapling zijn: tip om die eerst te maken
 				if (seeds > 0 && farmingLevel >= s.getLevel() && (bestUsed == null || s.getLevel() > bestUsed.getLevel()))
 				{
-					plan.tip("Maak eerst saplings van je " + s.getTreeSeedName() + "s - " + treeName(s)
-						+ " geeft meer XP dan " + (bestUsed == null ? "niets planten" : treeName(bestUsed)) + ".");
+					plan.tip(lang.t(
+						"Make saplings from your " + s.getTreeSeedName() + "s first - " + treeName(s)
+							+ " gives more XP than " + (bestUsed == null ? "planting nothing" : treeName(bestUsed)) + ".",
+						"Maak eerst saplings van je " + s.getTreeSeedName() + "s - " + treeName(s)
+							+ " geeft meer XP dan " + (bestUsed == null ? "niets planten" : treeName(bestUsed)) + "."));
 				}
 			}
 		}
 
 		if (patches > 0 && usable > 0 && usable < patches)
 		{
-			out.add("Je hebt " + usable + " te planten voor " + patches + " patches.");
+			out.add(lang.t("You have " + usable + " to plant for " + patches + " patches.",
+				"Je hebt " + usable + " te planten voor " + patches + " patches."));
 		}
 		if (usable > 0)
 		{
-			out.add("De planner plant de hoogste (meeste XP) eerst; de rest blijft in je bank voor de volgende run.");
+			out.add(lang.t("The planner plants the highest (most XP) first; the rest stays in your bank for the next run.",
+				"De planner plant de hoogste (meeste XP) eerst; de rest blijft in je bank voor de volgende run."));
 		}
 	}
 
@@ -242,6 +262,8 @@ public final class PlanBuilder
 	private static void addSaplingAdvice(RunType type, OwnedItems owned, int farmingLevel, FarmPlan plan)
 	{
 		List<String> out = plan.getSaplingAdvice();
+		Language lang = plan.getLanguage();
+		String treeWord = type == RunType.TREE ? lang.t("tree", "boom") : lang.t("fruit tree", "fruitboom");
 
 		Seed best = null;
 		for (Seed s : Seed.forRun(type))
@@ -254,12 +276,16 @@ public final class PlanBuilder
 		}
 		if (best == null)
 		{
-			out.add("Je hebt nog niet genoeg Farming voor een " + (type == RunType.TREE ? "boom" : "fruitboom") + ".");
+			out.add(lang.t("You don't have enough Farming for a " + treeWord + " yet.",
+				"Je hebt nog niet genoeg Farming voor een " + treeWord + "."));
 			return;
 		}
-		out.add("Beste " + (type == RunType.TREE ? "boom" : "fruitboom") + " op jouw level: " + treeName(best)
-			+ " (level " + best.getLevel() + ") - " + xp(best.getXpTotal()) + " XP per boom ("
-			+ xp(best.getXpPlant()) + " planten + " + xp(best.getXpLater()) + " check-health).");
+		String bestInfo = treeName(best) + " (level " + best.getLevel() + ") - " + lang.number(best.getXpTotal());
+		out.add(lang.t(
+			"Best " + treeWord + " for your level: " + bestInfo + " XP per tree ("
+				+ lang.number(best.getXpPlant()) + " planting + " + lang.number(best.getXpLater()) + " check-health).",
+			"Beste " + treeWord + " op jouw level: " + bestInfo + " XP per boom ("
+				+ lang.number(best.getXpPlant()) + " planten + " + lang.number(best.getXpLater()) + " check-health)."));
 
 		int totalSeeds = 0;
 		for (Seed s : Seed.forRun(type))
@@ -270,13 +296,17 @@ public final class PlanBuilder
 				continue;
 			}
 			totalSeeds += seeds;
-			out.add("Je kunt maken: " + seeds + " x " + s.getItemName() + " van je " + s.getTreeSeedName()
-				+ "s (" + xp(seeds * s.getXpTotal()) + " XP).");
+			String xpText = " (" + lang.number(seeds * s.getXpTotal()) + " XP).";
+			out.add(lang.t(
+				"You can make: " + seeds + " x " + s.getItemName() + " from your " + s.getTreeSeedName() + "s" + xpText,
+				"Je kunt maken: " + seeds + " x " + s.getItemName() + " van je " + s.getTreeSeedName() + "s" + xpText));
 		}
 		if (owned.count(best.getTreeSeedName()) == 0 && owned.count(best.getItemName()) == 0)
 		{
-			out.add("Je hebt geen " + best.getTreeSeedName() + "s. Die krijg je van o.a. bird nests, "
-				+ "Master Farmers en de Grand Exchange.");
+			out.add(lang.t("You have no " + best.getTreeSeedName() + "s. You can get them from bird nests, "
+				+ "Master Farmers and the Grand Exchange, among others.",
+				"Je hebt geen " + best.getTreeSeedName() + "s. Die krijg je van o.a. bird nests, "
+				+ "Master Farmers en de Grand Exchange."));
 		}
 
 		if (totalSeeds > 0)
@@ -284,17 +314,24 @@ public final class PlanBuilder
 			int pots = owned.count("Plant pot");
 			boolean trowel = owned.count("Gardening trowel") > 0;
 			boolean can = owned.find("Watering can(") != null || owned.count("Gricoller's can") > 0;
-			out.add("Nodig: " + totalSeeds + " gevulde Plant pots (je hebt er " + pots + ")"
-				+ ", Gardening trowel " + (trowel ? "(heb je)" : "(mist)")
-				+ ", Watering can " + (can ? "(heb je)" : "(mist)") + ".");
+			String have = lang.t("(have)", "(heb je)");
+			String missing = lang.t("(missing)", "(mist)");
+			out.add(lang.t("Needed: " + totalSeeds + " filled Plant pots (you have " + pots + ")",
+				"Nodig: " + totalSeeds + " gevulde Plant pots (je hebt er " + pots + ")")
+				+ ", Gardening trowel " + (trowel ? have : missing)
+				+ ", Watering can " + (can ? have : missing) + ".");
 		}
 
-		out.add("Hoe maak je een sapling:");
-		out.add("1. Vul een Empty plant pot met aarde: gebruik hem op een lege patch met een Gardening trowel "
-			+ "in je inventory (of koop gevulde Plant pots bij een farming-winkel).");
-		out.add("2. Gebruik het boomzaad op de gevulde Plant pot (trowel in je inventory) -> seedling.");
-		out.add("3. Geef de seedling water met een Watering can.");
-		out.add("4. Na een paar minuten (in je inventory of bank) wordt het een sapling.");
+		out.add(lang.t("How to make a sapling:", "Hoe maak je een sapling:"));
+		out.add(lang.t("1. Fill an Empty plant pot with soil: use it on an empty patch with a Gardening trowel "
+			+ "in your inventory (or buy filled Plant pots from a farming shop).",
+			"1. Vul een Empty plant pot met aarde: gebruik hem op een lege patch met een Gardening trowel "
+			+ "in je inventory (of koop gevulde Plant pots bij een farming-winkel)."));
+		out.add(lang.t("2. Use the tree seed on the filled Plant pot (trowel in your inventory) -> seedling.",
+			"2. Gebruik het boomzaad op de gevulde Plant pot (trowel in je inventory) -> seedling."));
+		out.add(lang.t("3. Water the seedling with a Watering can.", "3. Geef de seedling water met een Watering can."));
+		out.add(lang.t("4. After a few minutes (in your inventory or bank) it turns into a sapling.",
+			"4. Na een paar minuten (in je inventory of bank) wordt het een sapling."));
 	}
 
 	/** Berekent hoeveel coins je nodig hebt en zet ze op de lijst. */
@@ -334,11 +371,13 @@ public final class PlanBuilder
 			{
 				plan.withdraw(coins, have);
 			}
-			plan.warn("Je hebt " + needed + " coins nodig, maar hebt er maar " + have + ".");
+			plan.warn(plan.getLanguage().t("You need " + needed + " coins, but you only have " + have + ".",
+				"Je hebt " + needed + " coins nodig, maar hebt er maar " + have + "."));
 		}
 		if (type != RunType.HERB)
 		{
-			plan.tip(options.getCoinsPerTree() + " coins per boom zodat de gardener je oude boom weghaalt.");
+			plan.tip(options.getCoinsPerTree() + plan.getLanguage().t(" coins per tree so the gardener removes your old tree.",
+				" coins per boom zodat de gardener je oude boom weghaalt."));
 		}
 	}
 
@@ -369,7 +408,7 @@ public final class PlanBuilder
 			switch (opt.getKind())
 			{
 				case FREE:
-					return new Chosen(opt, null);
+					return new Chosen(opt, null, options.getLanguage());
 
 				case ITEM:
 					for (String pattern : opt.getItemPatterns())
@@ -387,7 +426,7 @@ public final class PlanBuilder
 								plan.withdrawOnce(e);
 								plan.allowAnyCharge(e.getName(), pattern);
 							}
-							return new Chosen(opt, e);
+							return new Chosen(opt, e, options.getLanguage());
 						}
 					}
 					break;
@@ -401,7 +440,7 @@ public final class PlanBuilder
 							left.use(r.getKey(), r.getValue());
 							plan.withdraw(rune, r.getValue());
 						}
-						return new Chosen(opt, null);
+						return new Chosen(opt, null, options.getLanguage());
 					}
 					break;
 			}
@@ -438,7 +477,7 @@ public final class PlanBuilder
 				return name;
 			}
 		}
-		plan.warn("Niet genoeg compost voor alle patches.");
+		plan.warn(plan.getLanguage().t("Not enough compost for all patches.", "Niet genoeg compost voor alle patches."));
 		return null;
 	}
 
@@ -456,7 +495,8 @@ public final class PlanBuilder
 			}
 			else
 			{
-				plan.warn(tool + " niet gevonden - misschien ligt hij bij de Tool Leprechaun.");
+				plan.warn(tool + plan.getLanguage().t(" not found - maybe it is stored with the Tool Leprechaun.",
+					" niet gevonden - misschien ligt hij bij de Tool Leprechaun."));
 			}
 		}
 		if (type != RunType.TREE)

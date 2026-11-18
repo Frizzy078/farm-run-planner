@@ -31,21 +31,21 @@ public enum Seed
 	TORSTOL(RunType.HERB, "Torstol seed", 85, 199.5, 224.5),
 
 	// Bomen
-	OAK(RunType.TREE, "Oak sapling", 15, 14, 467.3, "Acorn", "Oak seedling", "Tomatoes(5)", 1, "1 mand tomaten"),
-	WILLOW(RunType.TREE, "Willow sapling", 30, 25, 1456.5, "Willow seed", "Willow seedling", "Apples(5)", 1, "1 mand appels"),
-	MAPLE(RunType.TREE, "Maple sapling", 45, 45, 3403.4, "Maple seed", "Maple seedling", "Oranges(5)", 1, "1 mand sinaasappels"),
-	YEW(RunType.TREE, "Yew sapling", 60, 81, 7069.9, "Yew seed", "Yew seedling", "Cactus spine", 10, "10 cactus spines"),
-	MAGIC(RunType.TREE, "Magic sapling", 75, 145.5, 13768.3, "Magic seed", "Magic seedling", "Coconut", 25, "25 coconuts"),
+	OAK(RunType.TREE, "Oak sapling", 15, 14, 467.3, "Acorn", "Oak seedling", "Tomatoes(5)", 1, "1 basket of tomatoes", "1 mand tomaten"),
+	WILLOW(RunType.TREE, "Willow sapling", 30, 25, 1456.5, "Willow seed", "Willow seedling", "Apples(5)", 1, "1 basket of apples", "1 mand appels"),
+	MAPLE(RunType.TREE, "Maple sapling", 45, 45, 3403.4, "Maple seed", "Maple seedling", "Oranges(5)", 1, "1 basket of oranges", "1 mand sinaasappels"),
+	YEW(RunType.TREE, "Yew sapling", 60, 81, 7069.9, "Yew seed", "Yew seedling", "Cactus spine", 10, "10 cactus spines", "10 cactus spines"),
+	MAGIC(RunType.TREE, "Magic sapling", 75, 145.5, 13768.3, "Magic seed", "Magic seedling", "Coconut", 25, "25 coconuts", "25 coconuts"),
 
 	// Fruitbomen
-	APPLE(RunType.FRUIT_TREE, "Apple sapling", 27, 22, 1199.5, "Apple tree seed", "Apple seedling", "Sweetcorn", 9, "9 sweetcorn"),
-	BANANA(RunType.FRUIT_TREE, "Banana sapling", 33, 28, 1750.5, "Banana tree seed", "Banana seedling", "Apples(5)", 4, "4 manden appels"),
-	ORANGE(RunType.FRUIT_TREE, "Orange sapling", 39, 35.5, 2470.2, "Orange tree seed", "Orange seedling", "Strawberries(5)", 3, "3 manden aardbeien"),
-	CURRY(RunType.FRUIT_TREE, "Curry sapling", 42, 40, 2906.9, "Curry tree seed", "Curry seedling", "Banana", 5, "5 bananen"),
-	PINEAPPLE(RunType.FRUIT_TREE, "Pineapple sapling", 51, 57, 4605.7, "Pineapple seed", "Pineapple seedling", "Watermelon", 10, "10 watermeloenen"),
-	PAPAYA(RunType.FRUIT_TREE, "Papaya sapling", 57, 72, 6146.4, "Papaya tree seed", "Papaya seedling", "Pineapple", 10, "10 ananassen"),
-	PALM(RunType.FRUIT_TREE, "Palm sapling", 68, 110.5, 10150.1, "Palm tree seed", "Palm seedling", "Papaya fruit", 15, "15 papaya fruit"),
-	DRAGONFRUIT(RunType.FRUIT_TREE, "Dragonfruit sapling", 81, 140, 17335, "Dragonfruit tree seed", "Dragonfruit seedling", "Coconut", 15, "15 coconuts");
+	APPLE(RunType.FRUIT_TREE, "Apple sapling", 27, 22, 1199.5, "Apple tree seed", "Apple seedling", "Sweetcorn", 9, "9 sweetcorn", "9 sweetcorn"),
+	BANANA(RunType.FRUIT_TREE, "Banana sapling", 33, 28, 1750.5, "Banana tree seed", "Banana seedling", "Apples(5)", 4, "4 baskets of apples", "4 manden appels"),
+	ORANGE(RunType.FRUIT_TREE, "Orange sapling", 39, 35.5, 2470.2, "Orange tree seed", "Orange seedling", "Strawberries(5)", 3, "3 baskets of strawberries", "3 manden aardbeien"),
+	CURRY(RunType.FRUIT_TREE, "Curry sapling", 42, 40, 2906.9, "Curry tree seed", "Curry seedling", "Banana", 5, "5 bananas", "5 bananen"),
+	PINEAPPLE(RunType.FRUIT_TREE, "Pineapple sapling", 51, 57, 4605.7, "Pineapple seed", "Pineapple seedling", "Watermelon", 10, "10 watermelons", "10 watermeloenen"),
+	PAPAYA(RunType.FRUIT_TREE, "Papaya sapling", 57, 72, 6146.4, "Papaya tree seed", "Papaya seedling", "Pineapple", 10, "10 pineapples", "10 ananassen"),
+	PALM(RunType.FRUIT_TREE, "Palm sapling", 68, 110.5, 10150.1, "Palm tree seed", "Palm seedling", "Papaya fruit", 15, "15 papaya fruit", "15 papaya fruit"),
+	DRAGONFRUIT(RunType.FRUIT_TREE, "Dragonfruit sapling", 81, 140, 17335, "Dragonfruit tree seed", "Dragonfruit seedling", "Coconut", 15, "15 coconuts", "15 coconuts");
 
 	/** Gemiddeld aantal herbs per patch (schatting voor de XP-berekening). */
 	public static final int AVG_HERBS_PER_PATCH = 7;
@@ -59,16 +59,18 @@ public enum Seed
 	private final String seedlingName;
 	private final String paymentItem;
 	private final int paymentQty;
+	private final String paymentLabelEn;
 	private final String paymentLabel;
 
 	Seed(RunType runType, String itemName, int level, double xpPlant, double xpLater)
 	{
-		this(runType, itemName, level, xpPlant, xpLater, null, null, null, 0, null);
+		this(runType, itemName, level, xpPlant, xpLater, null, null, null, 0, null, null);
 	}
 
 	Seed(RunType runType, String itemName, int level, double xpPlant, double xpLater,
-		String treeSeedName, String seedlingName, String paymentItem, int paymentQty, String paymentLabel)
+		String treeSeedName, String seedlingName, String paymentItem, int paymentQty, String paymentLabelEn, String paymentLabel)
 	{
+		this.paymentLabelEn = paymentLabelEn;
 		this.runType = runType;
 		this.itemName = itemName;
 		this.level = level;
@@ -134,9 +136,9 @@ public enum Seed
 		return paymentQty;
 	}
 
-	public String getPaymentLabel()
+	public String getPaymentLabel(Language lang)
 	{
-		return paymentLabel;
+		return paymentLabel == null ? null : lang.t(paymentLabelEn, paymentLabel);
 	}
 
 	/** Zaden voor deze run, hoogste level eerst (meeste XP per patch). */

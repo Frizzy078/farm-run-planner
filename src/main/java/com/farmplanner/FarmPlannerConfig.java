@@ -12,9 +12,20 @@ public interface FarmPlannerConfig extends Config
 	String GROUP = "banktopatch";
 
 	@ConfigItem(
+		keyName = "language",
+		name = "Language / Taal",
+		description = "Language of the side panel and plan / Taal van het paneel en het plan",
+		position = 0
+	)
+	default Language language()
+	{
+		return Language.ENGLISH;
+	}
+
+	@ConfigItem(
 		keyName = "highlightBank",
 		name = "Highlight in bank",
-		description = "Markeer de items die je moet meenemen in je bank en inventory",
+		description = "Highlight the items you need to take in your bank and inventory",
 		position = 1
 	)
 	default boolean highlightBank()
@@ -25,8 +36,8 @@ public interface FarmPlannerConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "highlightColor",
-		name = "Highlight kleur",
-		description = "Kleur van de markering in de bank",
+		name = "Highlight color",
+		description = "Color of the highlights",
 		position = 2
 	)
 	default Color highlightColor()
@@ -36,8 +47,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "highlightTeleport",
-		name = "Highlight teleport-keuze",
-		description = "Kleurt de juiste optie in het rechtermuisklik-menu en in het teleport-venster",
+		name = "Highlight teleport choice",
+		description = "Colors the right option in the right-click menu and in the teleport window",
 		position = 10
 	)
 	default boolean highlightTeleport()
@@ -48,7 +59,7 @@ public interface FarmPlannerConfig extends Config
 	@ConfigItem(
 		keyName = "highlightPatches",
 		name = "Highlight patches",
-		description = "Markeer de farming patches van je run in de wereld",
+		description = "Highlight the farming patches of your run in the world",
 		position = 11
 	)
 	default boolean highlightPatches()
@@ -58,8 +69,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "hintArrow",
-		name = "Pijl naar patch",
-		description = "Toon een gele pijl (ook op de minimap) naar de dichtstbijzijnde patch",
+		name = "Arrow to patch",
+		description = "Show a yellow arrow (also on the minimap) to the nearest patch",
 		position = 12
 	)
 	default boolean hintArrow()
@@ -69,8 +80,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "payProtection",
-		name = "Bomen laten beschermen",
-		description = "Neem de betaling voor de gardener mee (bijv. 10 cactus spines per Yew) zodat je bomen niet doodgaan",
+		name = "Pay for tree protection",
+		description = "Take the gardener's payment (e.g. 10 cactus spines per Yew) so your trees can't die",
 		position = 14
 	)
 	default boolean payProtection()
@@ -80,8 +91,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "coinsPerTree",
-		name = "Coins per boom",
-		description = "Coins die je meeneemt per (fruit)boom om de oude boom te laten weghalen",
+		name = "Coins per tree",
+		description = "Coins to take per (fruit) tree to have the gardener remove the old tree",
 		position = 13
 	)
 	default int coinsPerTree()
@@ -91,8 +102,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "useSpells",
-		name = "Teleport-spreuken gebruiken",
-		description = "Gebruik spreuken (met runes uit je bank) als je geen teleport-item hebt",
+		name = "Use teleport spells",
+		description = "Use spells (with runes from your bank) when you have no teleport item",
 		position = 3
 	)
 	default boolean useSpells()
@@ -102,8 +113,8 @@ public interface FarmPlannerConfig extends Config
 
 	@ConfigItem(
 		keyName = "houseInHosidius",
-		name = "Huis staat in Hosidius",
-		description = "Gebruik 'Teleport to house' voor de Hosidius patch",
+		name = "House in Hosidius",
+		description = "Use 'Teleport to house' for the Hosidius patch",
 		position = 4
 	)
 	default boolean houseInHosidius()
@@ -114,7 +125,7 @@ public interface FarmPlannerConfig extends Config
 	@ConfigItem(
 		keyName = "includeTrollheim",
 		name = "Trollheim herb patch",
-		description = "Neem de Trollheim herb patch mee (My Arm's Big Adventure nodig)",
+		description = "Include the Trollheim herb patch (requires My Arm's Big Adventure)",
 		position = 5
 	)
 	default boolean includeTrollheim()
@@ -125,7 +136,7 @@ public interface FarmPlannerConfig extends Config
 	@ConfigItem(
 		keyName = "includeLletya",
 		name = "Lletya fruit tree patch",
-		description = "Neem de Lletya fruit tree patch mee (Mourning's End Part I nodig)",
+		description = "Include the Lletya fruit tree patch (requires Mourning's End Part I)",
 		position = 6
 	)
 	default boolean includeLletya()

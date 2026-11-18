@@ -106,6 +106,7 @@ public final class FarmPlan
 
 	private final RunType runType;
 	private final int farmingLevel;
+	private final Language language;
 	private final List<Step> steps = new ArrayList<>();
 	private final Map<String, Integer> withdraw = new LinkedHashMap<>();
 	private final Set<Integer> highlightIds = new HashSet<>();
@@ -118,8 +119,9 @@ public final class FarmPlan
 	private double xpNow;
 	private double xpLater;
 
-	FarmPlan(RunType runType, int farmingLevel)
+	FarmPlan(RunType runType, int farmingLevel, Language language)
 	{
+		this.language = language;
 		this.runType = runType;
 		this.farmingLevel = farmingLevel;
 	}
@@ -238,6 +240,12 @@ public final class FarmPlan
 	public List<String> getSeedOverview()
 	{
 		return seedOverview;
+	}
+
+	/** Taal waarin de teksten van dit plan staan. */
+	public Language getLanguage()
+	{
+		return language;
 	}
 
 	public RunType getRunType()

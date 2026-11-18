@@ -38,6 +38,7 @@ import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
@@ -50,7 +51,7 @@ import net.runelite.client.util.Text;
 
 @PluginDescriptor(
 	name = "Bank to Patch",
-	description = "Kijkt in je bank en maakt een farm run met route, zaden, compost en teleports",
+	description = "Plans your farm run from your bank: route, seeds, compost and teleports",
 	tags = {"farming", "herb", "tree", "route", "teleport", "bank", "planner"}
 )
 public class FarmPlannerPlugin extends Plugin
@@ -267,17 +268,46 @@ public class FarmPlannerPlugin extends Plugin
 	/** Wordt aangeroepen door de knop in het paneel. */
 	void requestPlan(RunType type)
 	{
+		buildPlan(type, false);
+	}
+
+	/** Taal van het paneel en het plan. */
+	Language getLanguage()
+	{
+		Language lang = config.language();
+		return lang == null ? Language.ENGLISH : lang;
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!FarmPlannerConfig.GROUP.equals(event.getGroup()) || !"language".equals(event.getKey()))
+		{
+			return;
+		}
+		SwingUtilities.invokeLater(() -> panel.applyLanguage());
+		FarmPlan current = plan;
+		if (current != null)
+		{
+			// Zelfde run opnieuw opbouwen in de nieuwe taal, voortgang blijft staan.
+			buildPlan(current.getRunType(), true);
+		}
+	}
+
+	private void buildPlan(RunType type, boolean keepProgress)
+	{
 		clientThread.invokeLater(() ->
 		{
 			if (client.getGameState() != GameState.LOGGED_IN)
 			{
-				SwingUtilities.invokeLater(() -> panel.showMessage("Log eerst in."));
+				SwingUtilities.invokeLater(() -> panel.showMessage(getLanguage().t("Log in first.", "Log eerst in.")));
 				return;
 			}
 			if (!bankSeen)
 			{
-				SwingUtilities.invokeLater(() -> panel.showMessage(
-					"Open eerst je bank één keer, zodat de plugin kan zien wat je hebt."));
+				SwingUtilities.invokeLater(() -> panel.showMessage(getLanguage().t(
+					"Open your bank once first, so the plugin can see what you have.",
+					"Open eerst je bank één keer, zodat de plugin kan zien wat je hebt.")));
 				return;
 			}
 
@@ -290,10 +320,16 @@ public class FarmPlannerPlugin extends Plugin
 				config.includeTrollheim(),
 				config.includeLletya(),
 				Math.max(0, config.coinsPerTree()),
-				config.payProtection());
+				config.payProtection(),
+				getLanguage());
 
 			FarmPlan newPlan = PlanBuilder.build(type, owned, farming, magic, options);
-			done = new boolean[newPlan.getActiveSteps().size()];
+			boolean[] newDone = new boolean[newPlan.getActiveSteps().size()];
+			if (keepProgress && done.length == newDone.length)
+			{
+				newDone = done.clone();
+			}
+			done = newDone;
 			plan = newPlan;
 			lastSeedCount = -1;
 			checkSeedPlanted(client.getItemContainer(INVENTORY));

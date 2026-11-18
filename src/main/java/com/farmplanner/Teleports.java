@@ -50,7 +50,7 @@ final class Teleports
 	static final TeleportOption[] HOSIDIUS = {
 		item("Xeric's talisman (Xeric's Glade)", "Xeric's talisman")
 			.menu("Rub").dialog("Xeric's Glade"),
-		tablet("Teleport to house (huis in Hosidius)", "Teleport to house")
+		tablet("Teleport to house (Hosidius)", "Teleport to house")
 			.onlyIf(PlanOptions::isHouseInHosidius),
 	};
 

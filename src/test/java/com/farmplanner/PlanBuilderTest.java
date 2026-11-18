@@ -8,6 +8,7 @@ import org.junit.Test;
 
 public class PlanBuilderTest
 {
+	private static final PlanOptions NL = PlanOptions.defaults().withLanguage(Language.DUTCH);
 	private static OwnedItems bank(Object... nameQty)
 	{
 		OwnedItems o = new OwnedItems();
@@ -28,7 +29,7 @@ public class PlanBuilderTest
 			"Ectophial", 1, "Xeric's talisman", 1, "Skills necklace(4)", 1,
 			"Rake", 1, "Seed dibber", 1, "Spade", 1);
 
-		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 70, 60, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 70, 60, NL);
 
 		// 70 Farming: 6 patches (incl. Farming Guild), geen Torstol (85)
 		assertEquals(6, plan.getPlantedCount());
@@ -52,7 +53,7 @@ public class PlanBuilderTest
 	public void fallsBackToSpellWhenNoItems()
 	{
 		OwnedItems owned = bank("Guam seed", 1, "Law rune", 10, "Air rune", 50, "Water rune", 50);
-		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 20, 99, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 20, 99, NL);
 		assertEquals(1, plan.getPlantedCount());
 		assertEquals("Ardougne Teleport (spreuk)", plan.getSteps().get(0).getTeleport());
 		assertEquals(Integer.valueOf(2), plan.getWithdraw().get("Law rune"));
@@ -61,7 +62,7 @@ public class PlanBuilderTest
 	@Test
 	public void noSeedsGivesWarning()
 	{
-		FarmPlan plan = PlanBuilder.build(RunType.TREE, bank("Spade", 1), 50, 50, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, bank("Spade", 1), 50, 50, NL);
 		assertEquals(0, plan.getPlantedCount());
 		assertTrue(plan.getWarnings().get(0).startsWith("Geen saplings"));
 	}
@@ -70,7 +71,7 @@ public class PlanBuilderTest
 	public void treeRunTakesCoinsPerTree()
 	{
 		OwnedItems owned = bank("Yew sapling", 3, "Willow sapling", 5, "Coins", 5000, "Spade", 1, "Rake", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, NL);
 		// 60 Farming: Lumbridge, Varrock, Falador, Taverley, Gnome Stronghold (Guild pas op 65)
 		assertEquals(5, plan.getPlantedCount());
 		assertEquals(Integer.valueOf(1000), plan.getWithdraw().get("Coins"));
@@ -80,7 +81,7 @@ public class PlanBuilderTest
 	public void fruitRunWarnsWhenNotEnoughCoins()
 	{
 		OwnedItems owned = bank("Apple sapling", 6, "Coins", 100, "Spade", 1, "Rake", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.FRUIT_TREE, owned, 30, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.FRUIT_TREE, owned, 30, 1, NL);
 		// Stronghold, Village, Catherby, Brimhaven = 4 x 200 + 30 boot
 		assertEquals(4, plan.getPlantedCount());
 		assertEquals(Integer.valueOf(100), plan.getWithdraw().get("Coins"));
@@ -91,7 +92,7 @@ public class PlanBuilderTest
 	public void herbRunNeedsNoCoins()
 	{
 		OwnedItems owned = bank("Guam seed", 2, "Coins", 500, "Ectophial", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 10, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 10, 1, NL);
 		assertNull(plan.getWithdraw().get("Coins"));
 	}
 
@@ -99,7 +100,7 @@ public class PlanBuilderTest
 	public void stepRemembersTeleportChoice()
 	{
 		OwnedItems owned = bank("Ranarr seed", 10, "Skills necklace(3)", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 70, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 70, 1, NL);
 		FarmPlan.Step guild = plan.getActiveSteps().get(plan.getActiveSteps().size() - 1);
 		assertEquals(Patch.GUILD_HERB, guild.getPatch());
 		assertEquals("Skills necklace(3)", guild.getTeleportItem());
@@ -110,7 +111,7 @@ public class PlanBuilderTest
 	public void treeRunTakesProtectionPaymentAndCountsXp()
 	{
 		OwnedItems owned = bank("Yew sapling", 2, "Cactus spine", 15, "Spade", 1, "Rake", 1, "Coins", 1000);
-		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, NL);
 		assertEquals(2, plan.getPlantedCount());
 		// 10 spines per Yew: eerste boom betaald, tweede niet (5 over)
 		assertEquals(Integer.valueOf(10), plan.getWithdraw().get("Cactus spine"));
@@ -126,7 +127,7 @@ public class PlanBuilderTest
 	public void herbXpIncludesCompostAndEstimatedHarvest()
 	{
 		OwnedItems owned = bank("Ranarr seed", 1, "Ultracompost", 1, "Ectophial", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 40, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.HERB, owned, 40, 1, NL);
 		assertEquals(27 + 36, plan.getXpNow(), 0.01);
 		assertEquals(30.5 * Seed.AVG_HERBS_PER_PATCH, plan.getXpLater(), 0.01);
 	}
@@ -136,7 +137,7 @@ public class PlanBuilderTest
 	{
 		OwnedItems owned = bank("Maple sapling", 5, "Yew seed", 3, "Plant pot", 1, "Gardening trowel", 1,
 			"Watering can(8)", 1);
-		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 62, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 62, 1, NL);
 		assertTrue(plan.getSaplingAdvice().get(0).startsWith("Beste boom op jouw level: Yew"));
 		assertTrue(plan.getSaplingAdvice().stream().anyMatch(a -> a.startsWith("Je kunt maken: 3 x Yew sapling")));
 		assertTrue(plan.getSaplingAdvice().stream().anyMatch(a -> a.contains("je hebt er 1")
@@ -149,7 +150,7 @@ public class PlanBuilderTest
 	public void noProtectionWhenDisabled()
 	{
 		OwnedItems owned = bank("Yew sapling", 1, "Cactus spine", 50);
-		PlanOptions noPay = new PlanOptions(true, false, false, false, 200, false);
+		PlanOptions noPay = new PlanOptions(true, false, false, false, 200, false, Language.DUTCH);
 		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 60, 1, noPay);
 		assertNull(plan.getWithdraw().get("Cactus spine"));
 	}
@@ -159,7 +160,7 @@ public class PlanBuilderTest
 	{
 		OwnedItems owned = bank("Willow sapling", 10, "Games necklace(8)", 2, "Spade", 1, "Rake", 1, "Coins", 5000,
 			"Apples(5)", 10);
-		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 30, 1, PlanOptions.defaults());
+		FarmPlan plan = PlanBuilder.build(RunType.TREE, owned, 30, 1, NL);
 		assertEquals(Integer.valueOf(1), plan.getWithdraw().get("Games necklace(8)"));
 
 		java.util.Map<String, Integer> carried = new java.util.HashMap<>();
@@ -180,5 +181,22 @@ public class PlanBuilderTest
 	{
 		OwnedItems owned = bank("Skills necklace", 1, "Skills necklace(2)", 1);
 		assertEquals("Skills necklace(2)", owned.find("Skills necklace(").getName());
+	}
+
+	@Test
+	public void englishPlanUsesEnglishTexts()
+	{
+		OwnedItems owned = bank("Yew sapling", 2, "Cactus spine", 15, "Coins", 100, "Guam seed", 1,
+			"Law rune", 10, "Air rune", 50, "Water rune", 50);
+		FarmPlan tree = PlanBuilder.build(RunType.TREE, owned, 60, 1, PlanOptions.defaults());
+		assertEquals(Language.ENGLISH, tree.getLanguage());
+		assertTrue(tree.getWarnings().stream().anyMatch(w -> w.startsWith("No protection for Yew")));
+		assertTrue(tree.getWarnings().contains("You need 400 coins, but you only have 100."));
+		assertEquals("Best tree for your level: Yew (level 60) - 7,151 XP per tree (81 planting + 7,070 check-health).",
+			tree.getSaplingAdvice().get(0));
+
+		FarmPlan herb = PlanBuilder.build(RunType.HERB, owned, 20, 99, PlanOptions.defaults());
+		assertEquals("Ardougne Teleport (spell)", herb.getSteps().get(0).getTeleport());
+		assertEquals("Patch north of Ardougne.", herb.getSteps().get(0).getPatch().getTip(Language.ENGLISH));
 	}
 }

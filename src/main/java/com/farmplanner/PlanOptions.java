@@ -9,9 +9,16 @@ public final class PlanOptions
 	private final boolean includeLletya;
 	private final int coinsPerTree;
 	private final boolean payProtection;
+	private final Language language;
 
 	public PlanOptions(boolean useSpells, boolean houseInHosidius, boolean includeTrollheim, boolean includeLletya,
 		int coinsPerTree, boolean payProtection)
+	{
+		this(useSpells, houseInHosidius, includeTrollheim, includeLletya, coinsPerTree, payProtection, Language.ENGLISH);
+	}
+
+	public PlanOptions(boolean useSpells, boolean houseInHosidius, boolean includeTrollheim, boolean includeLletya,
+		int coinsPerTree, boolean payProtection, Language language)
 	{
 		this.useSpells = useSpells;
 		this.houseInHosidius = houseInHosidius;
@@ -19,6 +26,19 @@ public final class PlanOptions
 		this.includeLletya = includeLletya;
 		this.coinsPerTree = coinsPerTree;
 		this.payProtection = payProtection;
+		this.language = language == null ? Language.ENGLISH : language;
+	}
+
+	/** Dezelfde instellingen, maar in een andere taal. */
+	public PlanOptions withLanguage(Language lang)
+	{
+		return new PlanOptions(useSpells, houseInHosidius, includeTrollheim, includeLletya, coinsPerTree, payProtection,
+			lang);
+	}
+
+	public Language getLanguage()
+	{
+		return language;
 	}
 
 	public static PlanOptions defaults()

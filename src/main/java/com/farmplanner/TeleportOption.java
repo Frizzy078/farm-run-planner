@@ -73,7 +73,7 @@ public final class TeleportOption
 		{
 			runes.put((String) runeSpec[i], (Integer) runeSpec[i + 1]);
 		}
-		return new TeleportOption(spellName + " (spreuk)", Kind.SPELL, Collections.emptyList(), true,
+		return new TeleportOption(spellName, Kind.SPELL, Collections.emptyList(), true,
 			runes, magicLevel, spellName, null, PlanOptions::isUseSpells);
 	}
 
@@ -102,9 +102,9 @@ public final class TeleportOption
 		return this;
 	}
 
-	public String getLabel()
+	public String getLabel(Language lang)
 	{
-		return label;
+		return kind == Kind.SPELL ? label + lang.t(" (spell)", " (spreuk)") : label;
 	}
 
 	public Kind getKind()

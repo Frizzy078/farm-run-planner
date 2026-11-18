@@ -16,7 +16,8 @@ A RuneLite plugin that looks at your bank and plans your farm run for you.
 - **Seed overview**: how many runs your seeds and saplings last, and which tree seeds still need to become saplings.
 - **Making saplings**: the best tree for your Farming level, how many saplings you can make and what you need.
 - **Route tracker**: finished patches turn green, the current patch is yellow; click a step to tick it off.
-- **Bank highlight**: everything you need to withdraw gets a coloured box in your bank.
+- **Take list turns green** for items you already carry; the bank only highlights what you still need.
+- **English or Dutch**: choose the panel language in the settings (Language / Taal).
 - **Step-by-step guidance**:
   - highlights the correct right-click option on your teleport item (e.g. *Rub* on a Skills necklace),
   - highlights the correct choice in the teleport menu (e.g. *Farming Guild*),
@@ -27,11 +28,12 @@ A RuneLite plugin that looks at your bank and plans your farm run for you.
 
 1. Open the **Bank to Patch** panel in the sidebar.
 2. Open your bank once so the plugin can see your items.
-3. Pick a run type and click **Maak plan** ("make plan").
+3. Pick a run type and click **Make plan**.
 4. Withdraw the highlighted items and follow the route.
 
 ## Settings
 
+- Language: English or Nederlands
 - Bank highlight on/off and colour
 - Highlight teleport choice, patches and hint arrow on/off
 - Coins per tree (default 200)

@@ -9,7 +9,6 @@ import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -36,6 +35,11 @@ class FarmPlannerPanel extends PluginPanel
 	private final FarmPlannerPlugin plugin;
 	private final JLabel status = new JLabel();
 	private final JPanel content = new JPanel();
+	private final JButton planButton = new JButton();
+	private final JButton clearButton = new JButton();
+	private boolean bankSeen;
+	/** Laatst getoonde plan, zodat de tekst bij een taalwissel ververst kan worden. */
+	private boolean showingIntro = true;
 
 	FarmPlannerPanel(FarmPlannerPlugin plugin)
 	{
@@ -48,18 +52,16 @@ class FarmPlannerPanel extends PluginPanel
 
 		JComboBox<RunType> runSelect = new JComboBox<>(RunType.values());
 
-		JButton planButton = new JButton("Maak plan");
 		planButton.addActionListener(e ->
 		{
-			showMessage("Bezig...");
+			showMessage(lang().t("Working...", "Bezig..."));
 			plugin.requestPlan((RunType) runSelect.getSelectedItem());
 		});
 
-		JButton clearButton = new JButton("Stop run");
 		clearButton.addActionListener(e ->
 		{
 			plugin.clearPlan();
-			showMessage("Run gestopt. Highlights zijn uit.");
+			showMessage(lang().t("Run stopped. Highlights are off.", "Run gestopt. Highlights zijn uit."));
 		});
 
 		JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 0));
@@ -77,20 +79,50 @@ class FarmPlannerPanel extends PluginPanel
 		add(top, BorderLayout.NORTH);
 		add(content, BorderLayout.CENTER);
 
-		setBankSeen(false);
-		showMessage("Kies een run en klik op 'Maak plan'.<br><br>"
-			+ "De plugin kijkt naar je bank, inventory en equipment, "
-			+ "en zegt wat je moet meenemen en waar je heen moet.");
+		applyLanguage();
+	}
+
+	private Language lang()
+	{
+		return plugin.getLanguage();
+	}
+
+	/** Zet de vaste teksten (knoppen, status, intro) in de gekozen taal. */
+	void applyLanguage()
+	{
+		Language l = lang();
+		planButton.setText(l.t("Make plan", "Maak plan"));
+		clearButton.setText(l.t("Stop run", "Stop run"));
+		setBankSeen(bankSeen);
+		if (showingIntro)
+		{
+			showIntro();
+		}
+	}
+
+	private void showIntro()
+	{
+		showMessage(lang().t(
+			"Choose a run and click 'Make plan'.<br><br>"
+				+ "The plugin looks at your bank, inventory and equipment, "
+				+ "and tells you what to take and where to go.",
+			"Kies een run en klik op 'Maak plan'.<br><br>"
+				+ "De plugin kijkt naar je bank, inventory en equipment, "
+				+ "en zegt wat je moet meenemen en waar je heen moet."));
+		showingIntro = true;
 	}
 
 	void setBankSeen(boolean seen)
 	{
-		status.setText(seen ? "Bank gelezen" : "Open je bank één keer");
+		bankSeen = seen;
+		Language l = lang();
+		status.setText(seen ? l.t("Bank read", "Bank gelezen") : l.t("Open your bank once", "Open je bank één keer"));
 		status.setForeground(seen ? ColorScheme.PROGRESS_COMPLETE_COLOR : ColorScheme.PROGRESS_INPROGRESS_COLOR);
 	}
 
 	void showMessage(String html)
 	{
+		showingIntro = false;
 		content.removeAll();
 		content.add(block(html, ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 		content.revalidate();
@@ -99,7 +131,9 @@ class FarmPlannerPanel extends PluginPanel
 
 	void showPlan(FarmPlan plan, boolean[] done, Map<String, Integer> carried)
 	{
+		showingIntro = false;
 		content.removeAll();
+		Language l = plan.getLanguage();
 		List<FarmPlan.Step> active = plan.getActiveSteps();
 
 		int doneCount = 0;
@@ -121,29 +155,35 @@ class FarmPlannerPanel extends PluginPanel
 		head.append("<b>").append(plan.getRunType()).append("</b> (Farming ").append(plan.getFarmingLevel()).append(")<br>");
 		if (!active.isEmpty())
 		{
-			head.append("Voortgang: ").append(doneCount).append(" / ").append(active.size()).append(" patches<br>");
-			head.append("XP nu: <b>").append(xp(plan.getXpNow())).append("</b> (planten + compost)<br>");
-			head.append("XP later: <b>").append(xp(plan.getXpLater())).append("</b> ")
-				.append(plan.getRunType() == RunType.HERB ? "(oogsten, geschat)" : "(check-health volgende run)");
+			head.append(l.t("Progress: ", "Voortgang: ")).append(doneCount).append(" / ").append(active.size())
+				.append(" patches<br>");
+			head.append(l.t("XP now: <b>", "XP nu: <b>")).append(l.number(plan.getXpNow())).append("</b> ")
+				.append(l.t("(planting + compost)", "(planten + compost)")).append("<br>");
+			head.append("XP later: <b>").append(l.number(plan.getXpLater())).append("</b> ")
+				.append(plan.getRunType() == RunType.HERB
+					? l.t("(harvest, estimated)", "(oogsten, geschat)")
+					: l.t("(check-health next run)", "(check-health volgende run)"));
 		}
 		else
 		{
-			head.append("Niets te planten.");
+			head.append(l.t("Nothing to plant.", "Niets te planten."));
 		}
 		content.add(block(head.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 
 		// ---- Route met groene (gedaan) en gele (huidige) stappen
 		if (!active.isEmpty())
 		{
-			content.add(header(current < 0 ? "ROUTE - KLAAR!" : "ROUTE (klik om af te vinken)"));
+			content.add(header(current < 0
+				? l.t("ROUTE - FINISHED!", "ROUTE - KLAAR!")
+				: l.t("ROUTE (click to tick off)", "ROUTE (klik om af te vinken)")));
 			for (int i = 0; i < active.size(); i++)
 			{
-				content.add(stepRow(i, active.get(i), i < done.length && done[i], i == current));
+				content.add(stepRow(l, i, active.get(i), i < done.length && done[i], i == current));
 			}
 
-			JButton back = new JButton("< Terug");
+			JButton back = new JButton(l.t("< Back", "< Terug"));
 			back.addActionListener(e -> plugin.changeStep(-1));
-			JButton next = new JButton("Klaar >");
+			JButton next = new JButton(l.t("Done >", "Klaar >"));
 			next.addActionListener(e -> plugin.changeStep(1));
 			JPanel nav = new JPanel(new GridLayout(1, 2, 5, 0));
 			nav.add(back);
@@ -178,29 +218,30 @@ class FarmPlannerPanel extends PluginPanel
 			}
 			int total = plan.getWithdraw().size();
 			content.add(header(complete == total
-				? "NEEM MEE - ALLES BIJ JE!"
-				: "NEEM MEE UIT JE BANK (" + complete + "/" + total + " compleet)"));
+				? l.t("TAKE WITH YOU - ALL CARRIED!", "NEEM MEE - ALLES BIJ JE!")
+				: l.t("TAKE FROM YOUR BANK (" + complete + "/" + total + " complete)",
+					"NEEM MEE UIT JE BANK (" + complete + "/" + total + " compleet)")));
 			content.add(block(w.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 		}
 
 		// ---- Waarschuwingen
 		if (!plan.getWarnings().isEmpty())
 		{
-			content.add(header("LET OP"));
+			content.add(header(l.t("WARNING", "LET OP")));
 			content.add(block(list(plan.getWarnings(), "! "), ColorScheme.DARKER_GRAY_COLOR, new Color(255, 170, 90)));
 		}
 
 		// ---- Seeds
 		if (!plan.getSeedOverview().isEmpty())
 		{
-			content.add(header("JOUW SEEDS"));
+			content.add(header(l.t("YOUR SEEDS", "JOUW SEEDS")));
 			content.add(block(list(plan.getSeedOverview(), "- "), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 		}
 
 		// ---- Saplings maken
 		if (!plan.getSaplingAdvice().isEmpty())
 		{
-			content.add(header("SAPLINGS MAKEN"));
+			content.add(header(l.t("MAKING SAPLINGS", "SAPLINGS MAKEN")));
 			content.add(block(list(plan.getSaplingAdvice(), ""), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 		}
 
@@ -215,26 +256,27 @@ class FarmPlannerPanel extends PluginPanel
 		content.repaint();
 	}
 
-	private JLabel stepRow(int index, FarmPlan.Step s, boolean isDone, boolean isCurrent)
+	private JLabel stepRow(Language l, int index, FarmPlan.Step s, boolean isDone, boolean isCurrent)
 	{
 		StringBuilder b = new StringBuilder();
 		b.append("<b>").append(index + 1).append(". ").append(esc(s.getPatch().getLocation())).append("</b>");
 		if (isDone)
 		{
-			b.append(" - GEDAAN");
+			b.append(l.t(" - DONE", " - GEDAAN"));
 		}
 		else if (isCurrent)
 		{
-			b.append(" - NU");
+			b.append(l.t(" - NOW", " - NU"));
 		}
 		b.append("<br>");
 		if (!isDone)
 		{
-			b.append("Teleport: ").append(s.getTeleport() != null ? esc(s.getTeleport()) : "geen - lopen").append("<br>");
+			b.append("Teleport: ").append(s.getTeleport() != null ? esc(s.getTeleport()) : l.t("none - walk", "geen - lopen"))
+				.append("<br>");
 			String choice = s.getTeleportOption() != null ? s.getTeleportOption().describeChoice() : null;
 			if (choice != null)
 			{
-				b.append("Kies: <b>").append(esc(choice)).append("</b><br>");
+				b.append(l.t("Choose: <b>", "Kies: <b>")).append(esc(choice)).append("</b><br>");
 			}
 			b.append("Plant: ").append(esc(s.getSeed()));
 			if (s.getCompost() != null)
@@ -244,11 +286,11 @@ class FarmPlannerPanel extends PluginPanel
 			b.append("<br>");
 			if (s.getPayment() != null)
 			{
-				b.append("Betaal gardener: ").append(esc(s.getPayment())).append("<br>");
+				b.append(l.t("Pay gardener: ", "Betaal gardener: ")).append(esc(s.getPayment())).append("<br>");
 			}
 			if (isCurrent)
 			{
-				b.append("<i>").append(esc(s.getPatch().getTip())).append("</i>");
+				b.append("<i>").append(esc(s.getPatch().getTip(l))).append("</i>");
 			}
 		}
 
@@ -264,7 +306,9 @@ class FarmPlannerPanel extends PluginPanel
 					BorderFactory.createEmptyBorder(5, 5, 5, 5))));
 		}
 		row.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		row.setToolTipText(isDone ? "Klik om weer open te zetten" : "Klik om als gedaan te markeren");
+		row.setToolTipText(isDone
+			? l.t("Click to mark as not done", "Klik om weer open te zetten")
+			: l.t("Click to mark as done", "Klik om als gedaan te markeren"));
 		row.addMouseListener(new MouseAdapter()
 		{
 			@Override
@@ -309,11 +353,6 @@ class FarmPlannerPanel extends PluginPanel
 			b.append(bullet).append(esc(s)).append("<br>");
 		}
 		return b.toString();
-	}
-
-	private static String xp(double value)
-	{
-		return String.format(Locale.forLanguageTag("nl"), "%,.0f", value);
 	}
 
 	private static String esc(String s)
