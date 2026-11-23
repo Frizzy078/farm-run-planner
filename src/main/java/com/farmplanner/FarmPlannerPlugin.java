@@ -111,6 +111,11 @@ public class FarmPlannerPlugin extends Plugin
 	private int lastSeedCount = -1;
 	/** Huidige stap is geplant, maar de gardener moet nog betaald worden. */
 	private volatile boolean awaitingPayment;
+	/** Plan voor het tabblad Saplings, of null. */
+	private volatile SaplingPlan saplingPlan;
+	private volatile Set<Integer> saplingMissing = Collections.emptySet();
+	/** Staat het tabblad Saplings open? Dan markeert de bank de sapling-spullen. */
+	private volatile boolean saplingTabActive;
 	private int lastPaymentCount = -1;
 	private WorldPoint ourHintArrow;
 	private int tickCounter;
@@ -161,6 +166,8 @@ public class FarmPlannerPlugin extends Plugin
 		highlightedWidgets = Collections.emptyList();
 		bankSeen = false;
 		plan = null;
+		saplingPlan = null;
+		saplingTabActive = false;
 	}
 
 	// ------------------------------------------------------------------ items
@@ -223,6 +230,63 @@ public class FarmPlannerPlugin extends Plugin
 		FarmPlan current = plan;
 		missingIds = current == null ? Collections.emptySet() : current.missingIds(counts);
 		refreshPanel();
+		SaplingPlan sp = saplingPlan;
+		saplingMissing = sp == null ? Collections.emptySet() : sp.missingIds(counts);
+		refreshSaplingPanel();
+	}
+
+	private void refreshSaplingPanel()
+	{
+		SaplingPlan sp = saplingPlan;
+		if (sp == null)
+		{
+			return;
+		}
+		Map<String, Integer> have = carried;
+		SwingUtilities.invokeLater(() -> panel.showSaplingPlan(sp, have));
+	}
+
+	/** Knop "Maak sapling-plan" in het tabblad Saplings. */
+	void requestSaplingPlan(RunType type)
+	{
+		clientThread.invokeLater(() ->
+		{
+			if (client.getGameState() != GameState.LOGGED_IN || !bankSeen)
+			{
+				String msg = client.getGameState() != GameState.LOGGED_IN
+					? getLanguage().t("Log in first.", "Log eerst in.")
+					: getLanguage().t("Open your bank once first, so the plugin can see what you have.",
+						"Open eerst je bank één keer, zodat de plugin kan zien wat je hebt.");
+				SwingUtilities.invokeLater(() -> panel.showSaplingMessage(msg));
+				return;
+			}
+			saplingPlan = SaplingPlan.build(type, collectOwnedItems(), client.getRealSkillLevel(Skill.FARMING),
+				getLanguage());
+			updateCarried();
+		});
+	}
+
+	void clearSaplingPlan()
+	{
+		saplingPlan = null;
+		saplingMissing = Collections.emptySet();
+	}
+
+	void setSaplingTabActive(boolean active)
+	{
+		saplingTabActive = active;
+	}
+
+	/** Item voor de volgende sapling-actie (zaad + pot, of seedling + gieter)? */
+	boolean isSaplingActionItem(int itemId)
+	{
+		SaplingPlan sp = saplingPlan;
+		if (!saplingTabActive || sp == null)
+		{
+			return false;
+		}
+		SaplingPlan.Action next = sp.progress(carried).next;
+		return sp.isNextActionItem(itemManager.getItemComposition(itemId).getName(), next);
 	}
 
 	/**
@@ -323,6 +387,11 @@ public class FarmPlannerPlugin extends Plugin
 			return;
 		}
 		SwingUtilities.invokeLater(() -> panel.applyLanguage());
+		SaplingPlan sp = saplingPlan;
+		if (sp != null)
+		{
+			requestSaplingPlan(sp.getRunType());
+		}
 		FarmPlan current = plan;
 		if (current != null)
 		{
@@ -406,6 +475,14 @@ public class FarmPlannerPlugin extends Plugin
 	private void afterStepChange()
 	{
 		awaitingPayment = false;
+		FarmPlan finished = plan;
+		if (finished != null && done.length > 0 && currentIndex() < 0)
+		{
+			// Alle stappen gedaan: run stoppen, highlights uit, samenvatting tonen.
+			clearPlan();
+			SwingUtilities.invokeLater(() -> panel.showFinished(finished));
+			return;
+		}
 		clientThread.invokeLater(() ->
 		{
 			lastSeedCount = -1;
@@ -880,6 +957,10 @@ public class FarmPlannerPlugin extends Plugin
 	/** Items die in de bank gemarkeerd worden: alles van het plan. */
 	Set<Integer> getBankHighlightIds()
 	{
+		if (saplingTabActive && saplingPlan != null)
+		{
+			return saplingMissing;
+		}
 		FarmPlan current = plan;
 		// Alleen wat je nog niet (genoeg) bij je hebt.
 		return current == null ? Collections.emptySet() : missingIds;

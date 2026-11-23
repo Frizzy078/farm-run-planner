@@ -10,12 +10,14 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToIntFunction;
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
@@ -37,6 +39,11 @@ class FarmPlannerPanel extends PluginPanel
 	private final JPanel content = new JPanel();
 	private final JButton planButton = new JButton();
 	private final JButton clearButton = new JButton();
+	private final JTabbedPane tabs = new JTabbedPane();
+	private final JPanel saplingContent = new JPanel();
+	private final JButton saplingPlanButton = new JButton();
+	private final JButton saplingClearButton = new JButton();
+	private boolean showingSaplingIntro = true;
 	private boolean bankSeen;
 	/** Laatst getoonde plan, zodat de tekst bij een taalwissel ververst kan worden. */
 	private boolean showingIntro = true;
@@ -49,37 +56,66 @@ class FarmPlannerPanel extends PluginPanel
 
 		JLabel title = new JLabel("Bank to Patch");
 		title.setFont(FontManager.getRunescapeBoldFont());
+		JPanel header = new JPanel(new GridLayout(0, 1, 0, 4));
+		header.add(title);
+		header.add(status);
 
+		// ---- Tabblad Run
 		JComboBox<RunType> runSelect = new JComboBox<>(RunType.values());
-
 		planButton.addActionListener(e ->
 		{
 			showMessage(lang().t("Working...", "Bezig..."));
 			plugin.requestPlan((RunType) runSelect.getSelectedItem());
 		});
-
 		clearButton.addActionListener(e ->
 		{
 			plugin.clearPlan();
 			showMessage(lang().t("Run stopped. Highlights are off.", "Run gestopt. Highlights zijn uit."));
 		});
-
-		JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 0));
-		buttons.add(planButton);
-		buttons.add(clearButton);
-
-		JPanel top = new JPanel(new GridLayout(0, 1, 0, 6));
-		top.add(title);
-		top.add(runSelect);
-		top.add(buttons);
-		top.add(status);
-
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+		JPanel runTab = tab(runSelect, planButton, clearButton, content);
 
-		add(top, BorderLayout.NORTH);
-		add(content, BorderLayout.CENTER);
+		// ---- Tabblad Saplings
+		JComboBox<RunType> saplingSelect = new JComboBox<>(new RunType[]{RunType.TREE, RunType.FRUIT_TREE});
+		saplingPlanButton.addActionListener(e ->
+		{
+			showSaplingMessage(lang().t("Working...", "Bezig..."));
+			plugin.requestSaplingPlan((RunType) saplingSelect.getSelectedItem());
+		});
+		saplingClearButton.addActionListener(e ->
+		{
+			plugin.clearSaplingPlan();
+			showSaplingIntro();
+		});
+		saplingContent.setLayout(new BoxLayout(saplingContent, BoxLayout.Y_AXIS));
+		JPanel saplingTab = tab(saplingSelect, saplingPlanButton, saplingClearButton, saplingContent);
+
+		tabs.addTab("Run", runTab);
+		tabs.addTab("Saplings", saplingTab);
+		tabs.addChangeListener(e -> plugin.setSaplingTabActive(tabs.getSelectedIndex() == 1));
+
+		add(header, BorderLayout.NORTH);
+		add(tabs, BorderLayout.CENTER);
 
 		applyLanguage();
+		showSaplingIntro();
+	}
+
+	/** Eén tabblad: keuzelijst, twee knoppen en een inhoud-deel. */
+	private static JPanel tab(JComboBox<RunType> select, JButton make, JButton stop, JPanel body)
+	{
+		JPanel buttons = new JPanel(new GridLayout(1, 2, 5, 0));
+		buttons.add(make);
+		buttons.add(stop);
+		JPanel top = new JPanel(new GridLayout(0, 1, 0, 6));
+		top.add(select);
+		top.add(buttons);
+
+		JPanel tab = new JPanel(new BorderLayout(0, 8));
+		tab.setBorder(new EmptyBorder(8, 0, 0, 0));
+		tab.add(top, BorderLayout.NORTH);
+		tab.add(body, BorderLayout.CENTER);
+		return tab;
 	}
 
 	private Language lang()
@@ -93,11 +129,141 @@ class FarmPlannerPanel extends PluginPanel
 		Language l = lang();
 		planButton.setText(l.t("Make plan", "Maak plan"));
 		clearButton.setText(l.t("Stop run", "Stop run"));
+		saplingPlanButton.setText(l.t("Make plan", "Maak plan"));
+		saplingClearButton.setText(l.t("Stop", "Stop"));
+		tabs.setTitleAt(0, l.t("Farm run", "Farm run"));
+		tabs.setTitleAt(1, l.t("Saplings", "Saplings"));
 		setBankSeen(bankSeen);
 		if (showingIntro)
 		{
 			showIntro();
 		}
+		if (showingSaplingIntro)
+		{
+			showSaplingIntro();
+		}
+	}
+
+	// ------------------------------------------------------------------ tabblad Saplings
+
+	private void showSaplingIntro()
+	{
+		showSaplingMessage(lang().t(
+			"Turn your tree seeds into saplings.<br><br>"
+				+ "Choose trees or fruit trees and click 'Make plan'. The plugin picks your best seeds for one "
+				+ "inventory, shows what to take and highlights the items for the next action.",
+			"Maak saplings van je boomzaden.<br><br>"
+				+ "Kies bomen of fruitbomen en klik op 'Maak plan'. De plugin kiest je beste zaden voor één "
+				+ "inventory, laat zien wat je moet meenemen en markeert de items voor de volgende actie."));
+		showingSaplingIntro = true;
+	}
+
+	void showSaplingMessage(String html)
+	{
+		showingSaplingIntro = false;
+		saplingContent.removeAll();
+		saplingContent.add(block(html, ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+		saplingContent.revalidate();
+		saplingContent.repaint();
+	}
+
+	void showSaplingPlan(SaplingPlan plan, Map<String, Integer> carried)
+	{
+		showingSaplingIntro = false;
+		saplingContent.removeAll();
+		Language l = plan.getLanguage();
+
+		if (!plan.getBatches().isEmpty())
+		{
+			// ---- Wat ga je maken
+			StringBuilder b = new StringBuilder();
+			for (SaplingPlan.Batch batch : plan.getBatches())
+			{
+				b.append(batch.getAmount()).append(" x ").append(esc(batch.getSeed().getItemName())).append("<br>");
+			}
+			b.append(l.t("XP when planted + checked: <b>", "XP als je ze plant + check-health: <b>"))
+				.append(l.number(plan.getXp())).append("</b>");
+			saplingContent.add(header(l.t("YOU WILL MAKE", "JE GAAT MAKEN")));
+			saplingContent.add(block(b.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+
+			// ---- Voortgang en volgende actie
+			SaplingPlan.Progress p = plan.progress(carried);
+			String next;
+			switch (p.next)
+			{
+				case PLANT:
+					next = l.t("Use a seed on a filled Plant pot (trowel in your inventory).",
+						"Gebruik een zaad op een gevulde Plant pot (trowel in je inventory).");
+					break;
+				case WATER:
+					next = l.t("Water your seedlings with the Watering can.",
+						"Geef je seedlings water met de Watering can.");
+					break;
+				case WAIT:
+					next = l.t("Wait a few minutes: the watered seedlings turn into saplings (also in your bank).",
+						"Wacht een paar minuten: de gewaterde seedlings worden saplings (ook in je bank).");
+					break;
+				case DONE:
+					next = l.t("All done! Your saplings are ready to plant on a tree run.",
+						"Klaar! Je saplings kunnen geplant worden tijdens een tree run.");
+					break;
+				default:
+					next = l.t("Take the items below from your bank.", "Haal de items hieronder uit je bank.");
+					break;
+			}
+			StringBuilder prog = new StringBuilder();
+			prog.append("<b>").append(l.t("Next: ", "Volgende: ")).append("</b>").append(esc(next)).append("<br><br>");
+			prog.append(l.t("Seeds: ", "Zaden: ")).append(p.seeds)
+				.append(l.t(" - filled pots: ", " - gevulde potten: ")).append(p.pots).append("<br>");
+			prog.append(l.t("Seedlings without water: ", "Seedlings zonder water: ")).append(p.dry).append("<br>");
+			prog.append(l.t("Growing: ", "Groeien: ")).append(p.growing).append("<br>");
+			prog.append(l.t("Saplings ready: ", "Saplings klaar: ")).append("<b>").append(p.saplings).append("</b>");
+			boolean done = p.next == SaplingPlan.Action.DONE;
+			saplingContent.add(header(l.t("PROGRESS", "VOORTGANG")));
+			saplingContent.add(block(prog.toString(), done ? DONE_BG : CURRENT_BG, done ? DONE_TEXT : Color.WHITE));
+
+			// ---- Meenemen
+			addTakeList(saplingContent, l, plan.getWithdraw(), name -> plan.countCarried(name, carried));
+		}
+
+		if (!plan.getWarnings().isEmpty())
+		{
+			saplingContent.add(header(l.t("WARNING", "LET OP")));
+			saplingContent.add(block(list(plan.getWarnings(), "! "), ColorScheme.DARKER_GRAY_COLOR,
+				new Color(255, 170, 90)));
+		}
+		if (!plan.getInfo().isEmpty())
+		{
+			saplingContent.add(header(l.t("OTHER SEEDS", "OVERIGE ZADEN")));
+			saplingContent.add(block(list(plan.getInfo(), "- "), ColorScheme.DARKER_GRAY_COLOR,
+				ColorScheme.LIGHT_GRAY_COLOR));
+		}
+
+		saplingContent.add(header(l.t("HOW IT WORKS", "ZO WERKT HET")));
+		saplingContent.add(block(list(java.util.Arrays.asList(
+			l.t("1. Use the tree seed on a filled Plant pot (Gardening trowel in your inventory).",
+				"1. Gebruik het boomzaad op een gevulde Plant pot (Gardening trowel in je inventory)."),
+			l.t("2. Use the Watering can on the seedling.", "2. Gebruik de Watering can op de seedling."),
+			l.t("3. After a few minutes the seedling becomes a sapling, also in your bank.",
+				"3. Na een paar minuten wordt de seedling een sapling, ook in je bank.")), ""),
+			ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+
+		saplingContent.revalidate();
+		saplingContent.repaint();
+	}
+
+	// ------------------------------------------------------------------ run klaar
+
+	/** Alle stappen zijn gedaan: samenvatting, highlights zijn al uit. */
+	void showFinished(FarmPlan plan)
+	{
+		Language l = plan.getLanguage();
+		showMessage("<b>" + l.t("Run finished!", "Run klaar!") + "</b><br><br>"
+			+ plan.getRunType() + ": " + plan.getActiveSteps().size() + " patches<br>"
+			+ l.t("XP now: <b>", "XP nu: <b>") + l.number(plan.getXpNow()) + "</b><br>"
+			+ "XP later: <b>" + l.number(plan.getXpLater()) + "</b><br><br>"
+			+ l.t("Highlights are off. Click 'Make plan' for a new run.",
+				"Highlights zijn uit. Klik op 'Maak plan' voor een nieuwe run."));
 	}
 
 	private void showIntro()
@@ -197,32 +363,7 @@ class FarmPlannerPanel extends PluginPanel
 		// ---- Meenemen
 		if (!active.isEmpty())
 		{
-			StringBuilder w = new StringBuilder();
-			int complete = 0;
-			for (Map.Entry<String, Integer> e : plan.getWithdraw().entrySet())
-			{
-				int need = e.getValue();
-				int have = plan.countCarried(e.getKey(), carried);
-				boolean ok = have >= need;
-				if (ok)
-				{
-					complete++;
-					w.append("<font color='").append(HAVE_HEX).append("'>").append(need).append(" x ")
-						.append(esc(e.getKey())).append(" - OK</font><br>");
-				}
-				else
-				{
-					w.append("<font color='").append(MISSING_HEX).append("'>").append(need).append(" x ")
-						.append(esc(e.getKey())).append(" (").append(have).append('/').append(need)
-						.append(")</font><br>");
-				}
-			}
-			int total = plan.getWithdraw().size();
-			content.add(header(complete == total
-				? l.t("TAKE WITH YOU - ALL CARRIED!", "NEEM MEE - ALLES BIJ JE!")
-				: l.t("TAKE FROM YOUR BANK (" + complete + "/" + total + " complete)",
-					"NEEM MEE UIT JE BANK (" + complete + "/" + total + " compleet)")));
-			content.add(block(w.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
+			addTakeList(content, l, plan.getWithdraw(), name -> plan.countCarried(name, carried));
 		}
 
 		// ---- Waarschuwingen
@@ -255,6 +396,37 @@ class FarmPlannerPanel extends PluginPanel
 
 		content.revalidate();
 		content.repaint();
+	}
+
+	/** Meeneemlijst: groen als je het bij je hebt, oranje met have/need als je het nog mist. */
+	private static void addTakeList(JPanel target, Language l, Map<String, Integer> withdraw,
+		ToIntFunction<String> carriedCount)
+	{
+		StringBuilder w = new StringBuilder();
+		int complete = 0;
+		for (Map.Entry<String, Integer> e : withdraw.entrySet())
+		{
+			int need = e.getValue();
+			int have = carriedCount.applyAsInt(e.getKey());
+			if (have >= need)
+			{
+				complete++;
+				w.append("<font color='").append(HAVE_HEX).append("'>").append(need).append(" x ")
+					.append(esc(e.getKey())).append(" - OK</font><br>");
+			}
+			else
+			{
+				w.append("<font color='").append(MISSING_HEX).append("'>").append(need).append(" x ")
+					.append(esc(e.getKey())).append(" (").append(have).append('/').append(need)
+					.append(")</font><br>");
+			}
+		}
+		int total = withdraw.size();
+		target.add(header(complete == total
+			? l.t("TAKE WITH YOU - ALL CARRIED!", "NEEM MEE - ALLES BIJ JE!")
+			: l.t("TAKE FROM YOUR BANK (" + complete + "/" + total + " complete)",
+				"NEEM MEE UIT JE BANK (" + complete + "/" + total + " compleet)")));
+		target.add(block(w.toString(), ColorScheme.DARKER_GRAY_COLOR, ColorScheme.LIGHT_GRAY_COLOR));
 	}
 
 	private JLabel stepRow(Language l, int index, FarmPlan.Step s, boolean isDone, boolean isCurrent, boolean paying)

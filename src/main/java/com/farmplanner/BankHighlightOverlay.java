@@ -36,7 +36,8 @@ public class BankHighlightOverlay extends WidgetItemOverlay
 		boolean inInventory = widgetItem.getWidget() != null
 			&& WidgetUtil.componentToInterface(widgetItem.getWidget().getId()) == InterfaceID.INVENTORY;
 		boolean highlight = inInventory
-			? plugin.getInventoryHighlightIds().contains(itemId) || plugin.isCurrentTeleportItem(itemId)
+			? plugin.isSaplingActionItem(itemId)
+				|| plugin.getInventoryHighlightIds().contains(itemId) || plugin.isCurrentTeleportItem(itemId)
 			: plugin.getBankHighlightIds().contains(itemId);
 		if (!highlight)
 		{
