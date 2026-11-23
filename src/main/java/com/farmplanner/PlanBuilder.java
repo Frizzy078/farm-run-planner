@@ -169,7 +169,7 @@ public final class PlanBuilder
 		{
 			left.use(pay.getName(), seed.getPaymentQty());
 			plan.withdraw(pay, seed.getPaymentQty());
-			step.setPayment(seed.getPaymentLabel(plan.getLanguage()));
+			step.setPayment(seed.getPaymentLabel(plan.getLanguage()), pay.getName());
 		}
 		else
 		{

@@ -22,6 +22,7 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.NPC;
 import net.runelite.api.Player;
 import net.runelite.api.Scene;
 import net.runelite.api.Skill;
@@ -108,6 +109,9 @@ public class FarmPlannerPlugin extends Plugin
 	/** Meeneem-items die je nog mist (worden in de bank gemarkeerd). */
 	private volatile Set<Integer> missingIds = Collections.emptySet();
 	private int lastSeedCount = -1;
+	/** Huidige stap is geplant, maar de gardener moet nog betaald worden. */
+	private volatile boolean awaitingPayment;
+	private int lastPaymentCount = -1;
 	private WorldPoint ourHintArrow;
 	private int tickCounter;
 
@@ -233,14 +237,47 @@ public class FarmPlannerPlugin extends Plugin
 			lastSeedCount = -1;
 			return;
 		}
+		if (awaitingPayment)
+		{
+			// Betaald als de betaling (ook noted) minder wordt.
+			int pay = paymentCount(step);
+			if (lastPaymentCount >= 0 && pay < lastPaymentCount)
+			{
+				lastPaymentCount = -1;
+				changeStep(1);
+				return;
+			}
+			lastPaymentCount = pay;
+			return;
+		}
 		int now = inventory.count(step.getSeedItemId());
 		if (lastSeedCount >= 0 && now < lastSeedCount && isNearPatch())
 		{
 			lastSeedCount = -1;
+			if (step.getPayment() != null)
+			{
+				awaitingPayment = true;
+				lastPaymentCount = paymentCount(step);
+				refreshPanel();
+				return;
+			}
 			changeStep(1);
 			return;
 		}
 		lastSeedCount = now;
+	}
+
+	/** Hoeveel van de betaling voor deze stap heb je bij je (noted telt mee, zelfde naam). */
+	private int paymentCount(FarmPlan.Step step)
+	{
+		String item = step.getPaymentItem();
+		return item == null ? 0 : carried.getOrDefault(item.toLowerCase(Locale.ROOT), 0);
+	}
+
+	/** Huidige stap is geplant en wacht op betaling aan de gardener. */
+	boolean isAwaitingPayment()
+	{
+		return awaitingPayment;
 	}
 
 	private boolean isNearPatch()
@@ -330,6 +367,10 @@ public class FarmPlannerPlugin extends Plugin
 				newDone = done.clone();
 			}
 			done = newDone;
+			if (!keepProgress)
+			{
+				awaitingPayment = false;
+			}
 			plan = newPlan;
 			lastSeedCount = -1;
 			checkSeedPlanted(client.getItemContainer(INVENTORY));
@@ -346,7 +387,8 @@ public class FarmPlannerPlugin extends Plugin
 		}
 		boolean[] snapshot = done.clone();
 		Map<String, Integer> have = carried;
-		SwingUtilities.invokeLater(() -> panel.showPlan(current, snapshot, have));
+		boolean paying = awaitingPayment;
+		SwingUtilities.invokeLater(() -> panel.showPlan(current, snapshot, have, paying));
 	}
 
 	/** Klik op een stap in het paneel: gedaan / niet gedaan. */
@@ -363,9 +405,11 @@ public class FarmPlannerPlugin extends Plugin
 
 	private void afterStepChange()
 	{
+		awaitingPayment = false;
 		clientThread.invokeLater(() ->
 		{
 			lastSeedCount = -1;
+			lastPaymentCount = -1;
 			checkSeedPlanted(client.getItemContainer(INVENTORY));
 		});
 		refreshPanel();
@@ -374,6 +418,7 @@ public class FarmPlannerPlugin extends Plugin
 	void clearPlan()
 	{
 		plan = null;
+		awaitingPayment = false;
 		clientThread.invokeLater(() ->
 		{
 			clearOurHintArrow();
@@ -558,18 +603,28 @@ public class FarmPlannerPlugin extends Plugin
 			return;
 		}
 		WorldPoint me = p.getWorldLocation();
-		GameObject nearest = null;
+		WorldPoint nearestPoint = null;
 		int best = Integer.MAX_VALUE;
-		for (GameObject o : getVisiblePatches())
+		NPC gardener = awaitingPayment ? findGardener(getCurrentStep()) : null;
+		if (gardener != null)
 		{
-			int d = o.getWorldLocation().distanceTo(me);
-			if (d < best)
+			// Geplant: wijs naar de gardener om te betalen.
+			nearestPoint = gardener.getWorldLocation();
+			best = nearestPoint.distanceTo(me);
+		}
+		else
+		{
+			for (GameObject o : getVisiblePatches())
 			{
-				best = d;
-				nearest = o;
+				int d = o.getWorldLocation().distanceTo(me);
+				if (d < best)
+				{
+					best = d;
+					nearestPoint = o.getWorldLocation();
+				}
 			}
 		}
-		if (nearest == null || best <= 2)
+		if (nearestPoint == null || best <= (gardener != null ? 1 : 2))
 		{
 			clearOurHintArrow();
 			return;
@@ -580,12 +635,30 @@ public class FarmPlannerPlugin extends Plugin
 		{
 			return;
 		}
-		WorldPoint target = nearest.getWorldLocation();
+		WorldPoint target = nearestPoint;
 		if (!target.equals(ourHintArrow))
 		{
 			client.setHintArrow(target);
 			ourHintArrow = target;
 		}
+	}
+
+	/** De gardener van deze patch als hij in beeld is, anders null. */
+	private NPC findGardener(FarmPlan.Step step)
+	{
+		String name = step == null ? null : step.getPatch().getGardener();
+		if (name == null)
+		{
+			return null;
+		}
+		for (NPC npc : client.getTopLevelWorldView().npcs())
+		{
+			if (npc != null && name.equalsIgnoreCase(npc.getName()))
+			{
+				return npc;
+			}
+		}
+		return null;
 	}
 
 	private void clearOurHintArrow()
@@ -603,6 +676,10 @@ public class FarmPlannerPlugin extends Plugin
 	public void onMenuEntryAdded(MenuEntryAdded event)
 	{
 		FarmPlan.Step step = getCurrentStep();
+		if (awaitingPayment && step != null && highlightPayOption(step, event.getMenuEntry()))
+		{
+			return;
+		}
 		if (!config.highlightTeleport() || step == null || step.getTeleportOption() == null)
 		{
 			return;
@@ -654,6 +731,24 @@ public class FarmPlannerPlugin extends Plugin
 				return;
 			}
 		}
+	}
+
+	/** Kleurt "Pay" op de gardener van deze patch. */
+	private boolean highlightPayOption(FarmPlan.Step step, MenuEntry entry)
+	{
+		String gardener = step.getPatch().getGardener();
+		if (gardener == null || !config.highlightTeleport())
+		{
+			return false;
+		}
+		String option = Text.removeTags(entry.getOption());
+		String target = Text.removeTags(entry.getTarget()).toLowerCase(Locale.ROOT);
+		if (option.toLowerCase(Locale.ROOT).startsWith("pay") && target.contains(gardener.toLowerCase(Locale.ROOT)))
+		{
+			entry.setOption(ColorUtil.wrapWithColorTag(option, config.highlightColor()));
+			return true;
+		}
+		return false;
 	}
 
 	/** Hoort deze itemnaam bij de teleport (patronen als "Games necklace(" matchen elke lading)? */

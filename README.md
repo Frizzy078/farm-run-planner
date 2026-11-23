@@ -16,6 +16,7 @@ A RuneLite plugin that looks at your bank and plans your farm run for you.
 - **Seed overview**: how many runs your seeds and saplings last, and which tree seeds still need to become saplings.
 - **Making saplings**: the best tree for your Farming level, how many saplings you can make and what you need.
 - **Route tracker**: finished patches turn green, the current patch is yellow; click a step to tick it off.
+- **Tree protection step**: each tree step ends with paying the gardener (by name). After planting, the hint arrow points to the gardener and the *Pay* option is highlighted; the route continues once you have paid.
 - **Take list turns green** for items you already carry; the bank only highlights what you still need.
 - **English or Dutch**: choose the panel language in the settings (Language / Taal).
 - **Step-by-step guidance**:

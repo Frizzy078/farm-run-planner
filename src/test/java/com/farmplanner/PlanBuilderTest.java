@@ -116,6 +116,8 @@ public class PlanBuilderTest
 		// 10 spines per Yew: eerste boom betaald, tweede niet (5 over)
 		assertEquals(Integer.valueOf(10), plan.getWithdraw().get("Cactus spine"));
 		assertEquals("10 cactus spines", plan.getActiveSteps().get(0).getPayment());
+		assertEquals("Cactus spine", plan.getActiveSteps().get(0).getPaymentItem());
+		assertEquals("Fayeth", plan.getActiveSteps().get(0).getPatch().getGardener());
 		assertNull(plan.getActiveSteps().get(1).getPayment());
 		assertTrue(plan.getWarnings().stream().anyMatch(w -> w.startsWith("Geen bescherming voor Yew")));
 		// XP: 2 x 81 planten nu, 2 x 7069.9 check-health later
@@ -198,5 +200,21 @@ public class PlanBuilderTest
 		FarmPlan herb = PlanBuilder.build(RunType.HERB, owned, 20, 99, PlanOptions.defaults());
 		assertEquals("Ardougne Teleport (spell)", herb.getSteps().get(0).getTeleport());
 		assertEquals("Patch north of Ardougne.", herb.getSteps().get(0).getPatch().getTip(Language.ENGLISH));
+	}
+
+	@Test
+	public void everyTreePatchHasAGardener()
+	{
+		for (Patch p : Patch.values())
+		{
+			if (p.getRunType() != RunType.HERB)
+			{
+				assertTrue(p + " heeft geen gardener", p.getGardener() != null);
+			}
+			else
+			{
+				assertNull(p.getGardener());
+			}
+		}
 	}
 }

@@ -41,6 +41,7 @@ public enum Patch
 	private final String location;
 	private final int farmingLevel;
 	private final String tipEn;
+	private String gardener;
 	private final String tip;
 	private final List<TeleportOption> teleports;
 	private final Predicate<PlanOptions> enabled;
@@ -60,6 +61,28 @@ public enum Patch
 		this.tip = tip;
 		this.teleports = Arrays.asList(teleports);
 		this.enabled = enabled;
+	}
+
+	/** Naam van de gardener die je betaalt voor bescherming, of null (herb patches). */
+	public String getGardener()
+	{
+		return gardener;
+	}
+
+	static
+	{
+		LUMBRIDGE_TREE.gardener = "Fayeth";
+		VARROCK_TREE.gardener = "Treznor";
+		FALADOR_TREE.gardener = "Heskel";
+		TAVERLEY_TREE.gardener = "Alain";
+		GNOME_TREE.gardener = "Prissy Scilla";
+		GUILD_TREE.gardener = "Rosie";
+		GNOME_FRUIT.gardener = "Bolongo";
+		VILLAGE_FRUIT.gardener = "Gileth";
+		CATHERBY_FRUIT.gardener = "Ellena";
+		BRIMHAVEN_FRUIT.gardener = "Garth";
+		LLETYA_FRUIT.gardener = "Liliwen";
+		GUILD_FRUIT.gardener = "Nikkie";
 	}
 
 	public RunType getRunType()

@@ -21,6 +21,7 @@ public final class FarmPlan
 		private int teleportItemId = -1;
 		private int seedItemId = -1;
 		private String payment;
+		private String paymentItem;
 
 		Step(Patch patch, String teleport, String seed, String compost)
 		{
@@ -80,9 +81,16 @@ public final class FarmPlan
 			return payment;
 		}
 
-		void setPayment(String payment)
+		void setPayment(String payment, String paymentItem)
 		{
 			this.payment = payment;
+			this.paymentItem = paymentItem;
+		}
+
+		/** Item waarmee je de gardener betaalt (bijv. "Cactus spine"), of null. */
+		public String getPaymentItem()
+		{
+			return paymentItem;
 		}
 
 		/** null = geen teleport gevonden. */

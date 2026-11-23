@@ -129,7 +129,7 @@ class FarmPlannerPanel extends PluginPanel
 		content.repaint();
 	}
 
-	void showPlan(FarmPlan plan, boolean[] done, Map<String, Integer> carried)
+	void showPlan(FarmPlan plan, boolean[] done, Map<String, Integer> carried, boolean awaitingPayment)
 	{
 		showingIntro = false;
 		content.removeAll();
@@ -178,7 +178,8 @@ class FarmPlannerPanel extends PluginPanel
 				: l.t("ROUTE (click to tick off)", "ROUTE (klik om af te vinken)")));
 			for (int i = 0; i < active.size(); i++)
 			{
-				content.add(stepRow(l, i, active.get(i), i < done.length && done[i], i == current));
+				content.add(stepRow(l, i, active.get(i), i < done.length && done[i], i == current,
+					i == current && awaitingPayment));
 			}
 
 			JButton back = new JButton(l.t("< Back", "< Terug"));
@@ -256,7 +257,7 @@ class FarmPlannerPanel extends PluginPanel
 		content.repaint();
 	}
 
-	private JLabel stepRow(Language l, int index, FarmPlan.Step s, boolean isDone, boolean isCurrent)
+	private JLabel stepRow(Language l, int index, FarmPlan.Step s, boolean isDone, boolean isCurrent, boolean paying)
 	{
 		StringBuilder b = new StringBuilder();
 		b.append("<b>").append(index + 1).append(". ").append(esc(s.getPatch().getLocation())).append("</b>");
@@ -266,31 +267,47 @@ class FarmPlannerPanel extends PluginPanel
 		}
 		else if (isCurrent)
 		{
-			b.append(l.t(" - NOW", " - NU"));
+			b.append(paying ? l.t(" - PAY NOW", " - NU BETALEN") : l.t(" - NOW", " - NU"));
 		}
 		b.append("<br>");
 		if (!isDone)
 		{
-			b.append("Teleport: ").append(s.getTeleport() != null ? esc(s.getTeleport()) : l.t("none - walk", "geen - lopen"))
-				.append("<br>");
+			int n = 1;
+			String plantedMark = paying ? "<font color='" + HAVE_HEX + "'>" : "";
+			String plantedEnd = paying ? l.t(" - done", " - gedaan") + "</font>" : "";
+
+			b.append(plantedMark).append(n++).append(". Teleport: ")
+				.append(s.getTeleport() != null ? esc(s.getTeleport()) : l.t("none - walk", "geen - lopen"));
 			String choice = s.getTeleportOption() != null ? s.getTeleportOption().describeChoice() : null;
-			if (choice != null)
+			if (choice != null && !paying)
 			{
-				b.append(l.t("Choose: <b>", "Kies: <b>")).append(esc(choice)).append("</b><br>");
+				b.append("<br>&nbsp;&nbsp;&nbsp;").append(l.t("Choose: <b>", "Kies: <b>")).append(esc(choice)).append("</b>");
 			}
-			b.append("Plant: ").append(esc(s.getSeed()));
+			b.append(plantedEnd).append("<br>");
+
+			b.append(plantedMark).append(n++).append(". ").append(l.t("Plant: ", "Plant: ")).append(esc(s.getSeed()));
 			if (s.getCompost() != null)
 			{
 				b.append(" + ").append(esc(s.getCompost()));
 			}
-			b.append("<br>");
+			b.append(plantedEnd).append("<br>");
+
 			if (s.getPayment() != null)
 			{
-				b.append(l.t("Pay gardener: ", "Betaal gardener: ")).append(esc(s.getPayment())).append("<br>");
+				String gardener = s.getPatch().getGardener() != null ? s.getPatch().getGardener() : "gardener";
+				b.append(paying ? "<b>" : "").append(n++).append(". ")
+					.append(l.t("Pay ", "Betaal ")).append(esc(gardener)).append(": ").append(esc(s.getPayment()))
+					.append("<br>&nbsp;&nbsp;&nbsp;")
+					.append(l.t("Right-click the gardener -> Pay (protects your tree)",
+						"Rechtsklik op de gardener -> Pay (beschermt je boom)"))
+					.append(paying ? "</b>" : "").append("<br>");
 			}
 			if (isCurrent)
 			{
-				b.append("<i>").append(esc(s.getPatch().getTip(l))).append("</i>");
+				b.append("<i>").append(esc(paying
+					? l.t("Planted! Now pay the gardener, then the route continues.",
+						"Geplant! Betaal nu de gardener, daarna gaat de route verder.")
+					: s.getPatch().getTip(l))).append("</i>");
 			}
 		}
 
